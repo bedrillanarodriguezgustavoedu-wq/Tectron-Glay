@@ -1,0 +1,91 @@
+Table categorias {
+  id int [pk, increment]
+  nombre varchar
+  slug varchar [unique]
+  descripcion text
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table productos {
+  id int [pk, increment]
+
+  categoria_id int [ref: > categorias.id]
+  nombre varchar
+  codigo varchar [unique]
+  descripcion_corta text
+  descripcion_larga text
+  precio_compra decimal(10,2)
+  precio_venta decimal(10,2)
+  stock int
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table producto_imagenes {
+  id int [pk, increment]
+
+  producto_id int [ref: > productos.id]
+  imagen varchar
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table usuarios {
+  id int [pk, increment]
+  nombre varchar
+  email varchar [unique]
+  password varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table productos_favoritos {
+  id int [pk, increment]
+
+  usuario_id int [ref: > usuarios.id]
+  producto_id int [ref: > productos.id]
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table carritos{
+  id int [pk, increment]
+
+  usuario_id int [ref: > usuarios.id]
+  producto_id int [ref: > productos.id]
+  cantidad int
+
+  created_at timestamp
+  updated_at timestamp
+}
+Table ordenes {
+  id int [pk, increment]
+
+  usuario_id int [ref: > usuarios.id]
+  total decimal(10,2)
+  divisa varchar
+  estado_pago varchar
+  estado_orden varchar
+  transaccion_id varchar
+  direccion_enviar varchar
+  nota text
+
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table detalle_ordenes {
+  id int [pk, increment]
+
+  orden_id int [ref: > ordenes.id]
+  producto_id int [ref: > productos.id]
+  cantidad int
+  precio decimal(10,2)
+
+  created_at timestamp
+  updated_at timestamp
+}

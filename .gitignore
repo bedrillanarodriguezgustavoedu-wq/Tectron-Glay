@@ -1,0 +1,35 @@
+*.log
+.DS_Store
+.env
+.env.backup
+.env.production
+# Copias que crea mercadopago-token.ps1 antes de tocar el token: llevan el token dentro
+.env.copia-*
+.phpactor.json
+.phpunit.result.cache
+/.codex
+/.cursor/
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/node_modules
+/public/build
+/public/fonts-manifest.dev.json
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+/vendor
+_ide_helper.php
+Homestead.json
+Homestead.yaml
+Thumbs.db
+
+# Copia de seguridad local: las fotos compartidas con galy_api son un enlace de Windows, no archivos del proyecto
+/public/galy_api
+
+# Scratch de pruebas con curl (contiene cookies de sesión)
+/cookies.txt

@@ -1,0 +1,13 @@
+User-agent: *
+Disallow: /admin
+Disallow: /home
+Disallow: /dashboard
+Disallow: /ajustes
+Disallow: /carrito
+Disallow: /pedido/
+Disallow: /pago/
+Disallow: /direcciones
+Disallow: /favoritos
+Disallow: /reservas
+Disallow: /web/login
+Disallow: /web/registro
