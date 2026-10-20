@@ -46,10 +46,16 @@ class MercadoPagoService
      * A propósito NO se mete nada de esto dentro de `habilitado()`: ese también
      * manda sobre el reconciliador y el webhook, y un 403 al abrir un checkout
      * nuevo no puede cancelar el cobro aprobado de un cliente que ya pagó.
+     *
+     * Una credencial de prueba tampoco se ofrece: el cliente llegaría al checkout
+     * de Mercado Pago y no podría pagarte, lo cual parece una tienda averiada.
      */
     public function sePuedeOfrecer(): bool
     {
-        return $this->habilitado() && $this->credencialVerificada() && ! $this->rechazoReciente();
+        return $this->habilitado()
+            && $this->credencialVerificada()
+            && ! $this->credencialDePrueba()
+            && ! $this->rechazoReciente();
     }
 
     /**
@@ -78,7 +84,7 @@ class MercadoPagoService
         return hash('sha256', trim((string) $this->accessToken()));
     }
 
-    public function registrarVerificacion(): void
+    public function registrarVerificacion(bool $esPrueba = false): void
     {
         $ajuste = Ajuste::first();
 
@@ -88,6 +94,7 @@ class MercadoPagoService
 
         $ajuste->web_mercadopago_token_hash = $this->huellaDeTokenActual();
         $ajuste->web_mercadopago_verificado_at = now();
+        $ajuste->web_mercadopago_es_prueba = $esPrueba;
         $ajuste->save();
     }
 
@@ -188,7 +195,11 @@ class MercadoPagoService
     {
         $token = trim((string) $this->accessToken());
 
-        return preg_match('/^(TEST|APP_USR)-\d{6,}-\d{4,}-[A-Za-z0-9]{12,}$/', $token) === 1;
+        // El cuarto tramo numérico es opcional: las credenciales nuevas de
+        // Checkout Pro lo traen, y rechazarlas por forma dejaba fuera un token
+        // auténtico. La Public Key sigue fuera porque su primer tramo lleva
+        // letras (`APP_USR-8f4a…`) y aquí se exigen seis dígitos.
+        return preg_match('/^(TEST|APP_USR)-\d{6,}-\d{4,}-[A-Za-z0-9]{12,}(-\d{4,})?$/', $token) === 1;
     }
 
     public function accessToken(): ?string
@@ -207,7 +218,20 @@ class MercadoPagoService
 
         return str_starts_with($token, 'TEST-')
             || str_contains($token, '-TEST-')
-            || str_ends_with($token, '-TEST');
+            || str_ends_with($token, '-TEST')
+            || $this->credencialDePrueba();
+    }
+
+    /**
+     * Si la credencial que está en el `.env` es de la pestaña «Prueba» del panel.
+     * No lo dice el prefijo —una de prueba puede empezar con `APP_USR-`— sino la
+     * cuenta con la que Mercado Pago respondió al probarla. Solo cuenta mientras
+     * la huella guardada siga siendo la del token actual.
+     */
+    public function credencialDePrueba(): bool
+    {
+        return $this->credencialVerificada()
+            && (bool) Ajuste::first()?->web_mercadopago_es_prueba;
     }
 
     /**
@@ -277,14 +301,14 @@ class MercadoPagoService
      * «token rechazado» dejaba al dueño sin saber si el token estaba muerto o
      * si el servidor no llegaba a la API: dos arreglos distintos.
      *
-     * @return array{ok: bool, detalle: string, codigo: int|null}
+     * @return array{ok: bool, detalle: string, codigo: int|null, es_prueba: bool}
      */
     public function titularCuenta(): array
     {
         try {
             $respuesta = $this->request()->get($this->apiUrl().'/users/me');
         } catch (Throwable $e) {
-            return ['ok' => false, 'detalle' => 'no se pudo hablar con la API: '.$e->getMessage(), 'codigo' => null];
+            return ['ok' => false, 'detalle' => 'no se pudo hablar con la API: '.$e->getMessage(), 'codigo' => null, 'es_prueba' => false];
         }
 
         if (! $respuesta->successful()) {
@@ -294,12 +318,30 @@ class MercadoPagoService
                 'ok' => false,
                 'codigo' => $respuesta->status(),
                 'detalle' => 'HTTP '.$respuesta->status().' — '.(is_string($mensaje) && $mensaje !== '' ? $mensaje : 'sin mensaje'),
+                'es_prueba' => false,
             ];
         }
 
         $cuenta = $respuesta->json() ?? [];
+        $correo = (string) ($cuenta['email'] ?? '');
 
-        return ['ok' => true, 'codigo' => 200, 'detalle' => (string) ($cuenta['email'] ?? 'ID '.($cuenta['id'] ?? '?'))];
+        return [
+            'ok' => true,
+            'codigo' => 200,
+            'detalle' => $correo !== '' ? $correo : 'ID '.($cuenta['id'] ?? '?'),
+            'es_prueba' => $this->esCuentaDePrueba($correo),
+        ];
+    }
+
+    /**
+     * Las cuentas que Mercado Pago crea para probar tienen su propio dominio de
+     * correo. Es la única señal fiable que hay cuando el token empieza con
+     * `APP_USR-` y salió de la pestaña Prueba.
+     */
+    private function esCuentaDePrueba(string $correo): bool
+    {
+        return str_contains(strtolower($correo), 'testuser.com')
+            || str_starts_with(strtolower($correo), 'test_user_');
     }
 
     /**

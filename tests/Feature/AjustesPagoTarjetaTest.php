@@ -125,6 +125,34 @@ class AjustesPagoTarjetaTest extends TestCase
     }
 
     /**
+     * El token de la pestaña Prueba pasa la prueba contra Mercado Pago, así que
+     * «Pasarela configurada» sería mentira: ningún cliente real puede pagar con
+     * él. El panel tiene que decir qué tipo de credencial hay puesta.
+     */
+    public function test_the_settings_page_says_when_the_verified_credential_is_only_a_test_one(): void
+    {
+        config([
+            'services.mercadopago.enabled' => true,
+            'services.mercadopago.access_token' => 'APP_USR-5684621234567890-1020-abcdef1234567890abcdef123456-1234567890',
+        ]);
+
+        $admin = $this->administrarAjustes();
+
+        // La verificación se anota en la fila de ajustes, así que tiene que
+        // existir antes de registrarla.
+        app(\App\Services\MercadoPagoService::class)->registrarVerificacion(esPrueba: true);
+
+        $this->assertFalse(app(\App\Services\MercadoPagoService::class)->sePuedeOfrecer());
+
+        $this->actingAs($admin)
+            ->get(route('admin.ajustes.index'))
+            ->assertOk()
+            ->assertSee('Credencial de prueba')
+            ->assertSee('Productivas')
+            ->assertDontSee('Pasarela configurada');
+    }
+
+    /**
      * Escribir un valor de ejemplo en el .env es peor que dejarlo vacío: el
      * checkout ofrecería la tarjeta y el cliente caería dentro de Mercado Pago.
      */

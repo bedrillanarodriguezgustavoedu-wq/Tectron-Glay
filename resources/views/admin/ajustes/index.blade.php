@@ -595,6 +595,19 @@
                                                         la base y la opción aparece sola; si lo rechaza, aquí verás
                                                         «Tarjeta en pausa» con el motivo.
                                                     </span>
+                                                @elseif ($mercadoPago->credencialDePrueba())
+                                                    {{-- Mercado Pago confirmó el token, pero con una cuenta de
+                                                         prueba: nada está roto y no se perdió dinero, solo es un
+                                                         token que todavía no puede cobrar a un cliente. --}}
+                                                    <span class="badge bg-warning text-dark">Credencial de prueba</span>
+                                                    <span class="small text-muted">
+                                                        El token es válido y la tienda lo comprobó, pero pertenece a una
+                                                        cuenta de prueba de Mercado Pago: un cliente real no puede
+                                                        pagarte con él, así que la tarjeta sigue sin ofrecerse.
+                                                        No hay nada que arreglar. Para cobrar de verdad, copia el
+                                                        Access Token de la pestaña <strong>Productivas</strong> de tu
+                                                        aplicación y pega <code>.\mercadopago-token.ps1</code> otra vez.
+                                                    </span>
                                                 @elseif ($pasarelista)
                                                     <span class="badge bg-success">Pasarela configurada</span>
                                                     <span class="small text-success">Marca esta casilla para mostrar «Tarjeta Visa» en el checkout.</span>

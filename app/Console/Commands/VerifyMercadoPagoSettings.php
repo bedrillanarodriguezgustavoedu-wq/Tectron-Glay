@@ -22,7 +22,7 @@ class VerifyMercadoPagoSettings extends Command
         $filas = [
             ['MERCADOPAGO_ENABLED', config('services.mercadopago.enabled') === true ? 'sí' : 'NO',
                 'MERCADOPAGO_ENABLED=true en .env'],
-            ['MERCADOPAGO_ACCESS_TOKEN', $token === '' ? 'NO' : ($mercadoPago->tokenVerosimil() ? $this->describirToken($token) : 'NO (no tiene forma de token)'),
+            ['MERCADOPAGO_ACCESS_TOKEN', $token === '' ? 'NO' : ($mercadoPago->tokenVerosimil() ? $this->describirToken($token, $mercadoPago) : 'NO (no tiene forma de token)'),
                 'Pega el Access Token completo de tu cuenta (empieza con TEST- o APP_USR-)'],
             ['MERCADOPAGO_WEBHOOK_SECRET', filled(config('services.mercadopago.webhook_secret')) ? 'sí' : 'no',
                 'Copia el secreto firmante del webhook registrado en Mercado Pago'],
@@ -38,9 +38,18 @@ class VerifyMercadoPagoSettings extends Command
         $this->table(['Qué se revisa', 'Estado', 'Cómo se arregla'], $filas);
 
         $ofrecida = $mercadoPago->sePuedeOfrecer() && (bool) $ajuste?->web_mercadopago_activa;
-        $this->info($ofrecida
-            ? 'El pago con tarjeta SÍ se muestra en el checkout ('.($mercadoPago->esTokenDePrueba() ? 'modo pruebas' : 'modo producción').').'
-            : 'El pago con tarjeta NO se muestra todavía: arregla las filas marcadas con NO.');
+
+        if ($ofrecida) {
+            $this->info('El pago con tarjeta SÍ se muestra en el checkout ('
+                .($mercadoPago->esTokenDePrueba() ? 'modo pruebas' : 'modo producción').').');
+        } elseif ($mercadoPago->credencialDePrueba()) {
+            // Ninguna fila de la tabla está en NO: la credencial vale, es de
+            // prueba. Decirle "arregla las filas marcadas con NO" lo deja
+            // buscando una fila que no existe.
+            $this->warn('El pago con tarjeta NO se muestra: la credencial puesta es de prueba y un cliente real no puede pagar con ella.');
+        } else {
+            $this->info('El pago con tarjeta NO se muestra todavía: arregla las filas marcadas con NO.');
+        }
 
         if ($mercadoPago->habilitado() && $mercadoPago->rechazoReciente()) {
             $this->warn('La opción está retirada porque Mercado Pago rechazó la credencial en un intento reciente.');
@@ -76,15 +85,19 @@ class VerifyMercadoPagoSettings extends Command
                 return self::FAILURE;
             }
 
-            $mercadoPago->registrarVerificacion();
+            $mercadoPago->registrarVerificacion($prueba['es_prueba']);
             $mercadoPago->levantarBloqueo();
-            $this->info('El token es válido y pertenece a '.$prueba['detalle']);
+            $this->info('El token es válido y pertenece a '.$prueba['detalle']
+                .($prueba['es_prueba'] ? ' — es una cuenta de PRUEBA' : ''));
 
             // La tabla de arriba se imprimió ANTES de esta prueba, así que describe
             // el estado de entrada. Sin este resumen el dueño se queda con un «NO»
             // en pantalla justo después de haber conseguido un sí, y corre el mismo
             // comando otra vez.
-            if (! $mercadoPago->sePuedeOfrecer()) {
+            if ($prueba['es_prueba']) {
+                $this->warn('Es un token de la pestaña Prueba: sirve para que tú lo veas funcionar, pero un cliente real no puede pagar con él.');
+                $this->line('La tarjeta sigue sin ofrecerse. Para cobrar de verdad, copia el Access Token de la pestaña Productivas y corre este script otra vez.');
+            } elseif (! $mercadoPago->sePuedeOfrecer()) {
                 $this->warn('La credencial vale, pero la opción sigue apagada por otra razón: mira la tabla de arriba.');
             } elseif (! (bool) $ajuste?->web_mercadopago_activa) {
                 $this->line('Falta un clic: marca «Ofrecer pago con tarjeta» en Admin → Ajustes y guarda.');
@@ -127,8 +140,12 @@ class VerifyMercadoPagoSettings extends Command
             .'. El scheduler ejecuta mercadopago:reconciliar cada 10 minutos; si el scheduler no está activo, corre el comando a mano.');
     }
 
-    private function describirToken(string $token): string
+    private function describirToken(string $token, MercadoPagoService $mercadoPago): string
     {
+        if ($mercadoPago->credencialDePrueba()) {
+            return 'de pruebas (Mercado Pago respondió con una cuenta de prueba), '.strlen($token).' caracteres';
+        }
+
         if (str_starts_with($token, 'TEST-')) {
             return 'de pruebas (TEST-), '.strlen($token).' caracteres';
         }

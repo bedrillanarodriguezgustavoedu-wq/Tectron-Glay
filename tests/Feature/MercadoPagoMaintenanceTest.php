@@ -175,6 +175,29 @@ class MercadoPagoMaintenanceTest extends TestCase
         $this->assertStringNotContainsString('3733c7f9ab12', $salida);
     }
 
+    /**
+     * El token de la pestaña Prueba es válido y Mercado Pago lo acepta, así que el
+     * médico tiene que decir lo que es y no lo que parece: con él ningún cliente
+     * real puede pagar, y certificarlo como si cobrara anuncia una tarjeta muerta.
+     */
+    public function test_the_doctor_command_says_a_valid_test_credential_still_cannot_charge(): void
+    {
+        Http::fake([
+            'api.mercadopago.com/users/me' => Http::response(['id' => 987, 'email' => 'test_user_8119926368976578537@testuser.com']),
+        ]);
+
+        $this->credencialEnVitrina();
+
+        Artisan::call('mercadopago:verificar', ['--probar' => true]);
+        $salida = Artisan::output();
+
+        $this->assertStringContainsString('es una cuenta de PRUEBA', $salida);
+        $this->assertStringContainsString('un cliente real no puede pagar con él', $salida);
+        $this->assertStringContainsString('pestaña Productivas', $salida);
+        $this->assertStringNotContainsString('la tarjeta Visa se ofrece en el carrito', $salida);
+        $this->assertFalse(app(MercadoPagoService::class)->sePuedeOfrecer());
+    }
+
     public function test_the_doctor_command_fails_loudly_when_mercado_pago_rejects_the_token(): void
     {
         Http::fake([

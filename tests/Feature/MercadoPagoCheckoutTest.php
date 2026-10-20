@@ -177,6 +177,77 @@ class MercadoPagoCheckoutTest extends TestCase
         $this->assertFalse($mercadoPago->esTokenDePrueba());
     }
 
+    /**
+     * El filtro de forma está para rechazar la Public Key copiada por error, no
+     * para rechazar credenciales auténticas. Las de Checkout Pro de hoy traen un
+     * cuarto tramo numérico, y exigir tres dejaba fuera el token real del dueño.
+     */
+    public function test_the_shape_filter_accepts_a_real_token_and_rejects_a_public_key(): void
+    {
+        $mercadoPago = app(MercadoPagoService::class);
+
+        foreach ([
+            'TEST-8514936306504285-091415-3733c7f9ab12d4e5',
+            'APP_USR-5684621234567890-1020-abcdef1234567890abcdef123456-1234567890',
+        ] as $token) {
+            config(['services.mercadopago.access_token' => $token]);
+
+            $this->assertTrue($mercadoPago->tokenVerosimil(), "rechazado por forma: {$token}");
+        }
+
+        foreach ([
+            'APP_USR-8f4a1b2c-3d4e-5f60-a1b2-c3d4e5f60718',
+            'APP_USR-99999999999999999999999999999999',
+        ] as $valor) {
+            config(['services.mercadopago.access_token' => $valor]);
+
+            $this->assertFalse($mercadoPago->tokenVerosimil(), "aceptado sin ser un token: {$valor}");
+        }
+    }
+
+    /**
+     * Lo que dice el prefijo no basta: la pestaña Prueba de Mercado Pago entrega
+     * hoy tokens que empiezan con `APP_USR-`. La prueba contra la API devuelve la
+     * cuenta titular, y esa es la que distingue un token que cobra de uno que no.
+     */
+    public function test_the_probe_tells_a_test_account_apart_from_a_real_one(): void
+    {
+        Http::fakeSequence()
+            ->push(['id' => 1, 'email' => 'test_user_8119926368976578537@testuser.com'])
+            ->push(['id' => 2, 'email' => 'tienda@ejemplo.com.pe']);
+
+        $prueba = app(MercadoPagoService::class)->titularCuenta();
+
+        $this->assertTrue($prueba['ok']);
+        $this->assertTrue($prueba['es_prueba'], 'una cuenta @testuser.com no es de producción');
+
+        $this->assertFalse(app(MercadoPagoService::class)->titularCuenta()['es_prueba']);
+    }
+
+    /**
+     * Un token de la pestaña Prueba es válido y Mercado Pago lo acepta, pero con
+     * él un cliente real no puede pagar. Dejar la tarjeta a la vista fabrica
+     * clientes que llegan a un checkout que los rechaza y desisten.
+     */
+    public function test_a_verified_test_credential_is_not_offered_to_customers(): void
+    {
+        $usuario = $this->crearClienteConCarrito();
+        $this->configurarPasarela(verificada: false);
+        config(['services.mercadopago.access_token' => 'APP_USR-5684621234567890-1020-abcdef1234567890abcdef123456-1234567890']);
+        app(MercadoPagoService::class)->registrarVerificacion(esPrueba: true);
+
+        $mercadoPago = app(MercadoPagoService::class);
+
+        $this->assertTrue($mercadoPago->credencialDePrueba());
+        $this->assertFalse($mercadoPago->sePuedeOfrecer());
+
+        $this->actingAs($usuario)
+            ->get(route('web.carrito.index'))
+            ->assertOk()
+            ->assertSee('Próximamente')
+            ->assertDontSee('id="pago_tarjeta"', false);
+    }
+
     public function test_the_card_option_stays_hidden_without_gateway_credentials(): void
     {
         $usuario = $this->crearClienteConCarrito();

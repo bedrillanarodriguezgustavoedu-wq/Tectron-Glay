@@ -46,7 +46,7 @@ if ($token -eq $actual) {
     exit 1
 }
 
-if ($token -notmatch '^(TEST|APP_USR)-\d{6,}-\d{4,}-[A-Za-z0-9]{12,}$') {
+if ($token -notmatch '^(TEST|APP_USR)-\d{6,}-\d{4,}-[A-Za-z0-9]{12,}(-\d{4,})?$') {
     Write-Host 'Ese valor no tiene la forma de un Access Token.' -ForegroundColor Red
     Write-Host 'Lo habitual es haber copiado la Public Key (es más corta) o quedase parte del número' -ForegroundColor Red
     Write-Host 'al seleccionar. En la pantalla de credenciales hay un botón de copiar junto al token.' -ForegroundColor Red
