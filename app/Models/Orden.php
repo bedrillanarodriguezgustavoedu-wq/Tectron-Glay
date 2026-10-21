@@ -67,16 +67,22 @@ class Orden extends Model
 
     public function getModalidadEntregaAttribute($value)
     {
-        return strtoupper((string) ($this->attributes['metodo_entrega'] ?? $value)) === 'RECOJO'
-            ? 'recojo'
-            : 'envio';
+        return match (strtoupper((string) ($this->attributes['metodo_entrega'] ?? $value))) {
+            'RECOJO' => 'recojo',
+            'PROVINCIA' => 'provincia',
+            default => 'envio',
+        };
     }
 
     public function setModalidadEntregaAttribute($value): void
     {
-        $this->attributes['metodo_entrega'] = strtolower((string) $value) === 'recojo'
-            ? 'RECOJO'
-            : 'DOMICILIO';
+        // La columna heredada es `metodo_entrega` y la comparten la app Android y
+        // el panel PHP como texto libre, así que un valor nuevo no rompe a nadie.
+        $this->attributes['metodo_entrega'] = match (strtolower((string) $value)) {
+            'recojo' => 'RECOJO',
+            'provincia' => 'PROVINCIA',
+            default => 'DOMICILIO',
+        };
     }
 
     public function getDireccionEnvioAttribute($value)
@@ -87,6 +93,51 @@ class Orden extends Model
     public function setDireccionEnvioAttribute($value): void
     {
         $this->attributes['direccion'] = $value;
+    }
+
+    /**
+     * La columna heredada es texto libre que escriben la web, la app Android y el
+     * panel, casi siempre como «Alias: casa | Dirección: jr cristo rey | …», y en
+     * la pantalla del cliente eso es un muro ilegible que repite la calle. Se
+     * limpia solo al mostrar: el pedido conserva su texto histórico, que es lo que
+     * ya vio la tienda cuando despachó.
+     *
+     * @return list<string>
+     */
+    public function direccion_envio_lineas(): array
+    {
+        $lineas = [];
+        $vistas = [];
+
+        foreach (preg_split('/\s*\|\s*/', (string) $this->direccion_envio) ?: [] as $parte) {
+            $parte = trim($parte);
+
+            if (preg_match('/^alias\s*:/iu', $parte)) {
+                continue;
+            }
+
+            $valor = trim((string) preg_replace(
+                '/^(direcci[oó]n|referencia|ref|provincia|departamento|pa[ií]s|c\.?\s?p\.?|tel[eé]fono|telf)\s*:\s*/iu',
+                '',
+                $parte
+            ));
+
+            // «N/A» es lo que guarda una dirección sin provincia: no le sirve a nadie.
+            if ($valor === '' || in_array(strtoupper($valor), ['N/A', 'NA'], true)) {
+                continue;
+            }
+
+            $clave = mb_strtolower($valor);
+
+            if (in_array($clave, $vistas, true)) {
+                continue;
+            }
+
+            $vistas[] = $clave;
+            $lineas[] = $valor;
+        }
+
+        return $lineas;
     }
 
     public function usuario()
@@ -159,7 +210,11 @@ class Orden extends Model
 
     public function getModalidadTexto()
     {
-        return $this->modalidad_entrega === 'recojo' ? 'Recojo en tienda' : 'Envío a domicilio';
+        return match ($this->modalidad_entrega) {
+            'recojo' => 'Recojo en tienda',
+            'provincia' => 'Envío a provincias',
+            default => 'Envío a domicilio',
+        };
     }
 
     public function getMetodoPagoTexto()

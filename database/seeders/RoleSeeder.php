@@ -67,6 +67,9 @@ class RoleSeeder extends Seeder
             // Nuevos módulos administrativos
             'Listado de Marcas', 'Crear Marca', 'Guardar Marca', 'Ver detalle de Marca', 'Editar Marca', 'Actualizar Marca', 'Eliminar Marca',
             'Listado de Ofertas', 'Crear Oferta', 'Guardar Oferta', 'Ver detalle de Oferta', 'Editar Oferta', 'Actualizar Oferta', 'Eliminar Oferta',
+            'Listado de Cupones', 'Crear Cupon', 'Guardar Cupon', 'Editar Cupon', 'Actualizar Cupon', 'Eliminar Cupon',
+            'Listado de Asesores', 'Crear Asesor', 'Guardar Asesor', 'Editar Asesor', 'Actualizar Asesor', 'Eliminar Asesor',
+            'Listado de Punto de Recojo', 'Crear Punto de Recojo', 'Guardar Punto de Recojo', 'Editar Punto de Recojo', 'Actualizar Punto de Recojo', 'Eliminar Punto de Recojo',
             'Listado de Banners', 'Crear Banner', 'Guardar Banner', 'Ver detalle de Banner', 'Editar Banner', 'Actualizar Banner', 'Eliminar Banner',
             'Listado de Carruseles', 'Crear Carrusel', 'Guardar Carrusel', 'Ver detalle de Carrusel', 'Editar Carrusel', 'Actualizar Carrusel', 'Eliminar Carrusel',
             'Listado de Secciones Home', 'Editar Sección Home', 'Actualizar Sección Home',

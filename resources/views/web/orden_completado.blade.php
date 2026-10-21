@@ -19,6 +19,19 @@
         // CCI incompleta), el pedido no se queda con un número a medio copiar.
         $destinoNoFiable = $pagoConTransferencia
             && \App\Models\Ajuste::motivoParaOcultarPagoWeb($ajuste, (string) $orden->metodo_pago) !== null;
+        // En la app del banco se teclea el importe sin miles ni símbolo: copiar
+        // «S/ 4,200.00» obliga a borrar a mano y es donde alguien redondea.
+        $importeCopiable = number_format((float) $orden->total, 2, '.', '');
+        $lineasDireccion = $orden->direccion_envio_lineas();
+        // El título sigue el texto real del pedido y no la modalidad elegida: un
+        // «envío a provincia» sin agencia guarda la casa del cliente, y llamarlo
+        // «agencia» lo mandaría a retirar una caja que nunca llegó a ese local.
+        $primerasPalabras = mb_strtolower(trim((string) $orden->direccion_envio));
+        $tituloDireccion = match (true) {
+            str_starts_with($primerasPalabras, 'recojo en ') => 'Punto de recojo',
+            str_starts_with($primerasPalabras, 'agencia ') => 'Agencia de destino',
+            default => 'Dirección de envío',
+        };
     @endphp
     <style>
         .receipt-step__heading {
@@ -85,6 +98,39 @@
 
         .receipt-dropzone small {
             max-width: 460px;
+        }
+
+        /* El QR sube como foto de pantalla: el cuadro se ve grande pero el código
+           de adentro es chico, así que agrandarlo no es un adorno. */
+        /* El tema ya fija `button:not(:disabled) { cursor: pointer }`: sin el
+           :not() esta regla empataría y perdería por orden de carga. */
+        button.checkout-qr-zoom:not(:disabled) {
+            cursor: zoom-in;
+            display: block;
+            padding: 0;
+            border: 0;
+            background: none;
+            line-height: 0;
+        }
+
+        button.checkout-qr-zoom:focus-visible {
+            outline: 2px solid var(--color-primary, #0d6efd);
+            outline-offset: 2px;
+            border-radius: .5rem;
+        }
+
+        /* El QR real sube como foto de pantalla vertical: si se fuerza un cuadro
+           1:1, la foto se encoge para caber y el código se ve más chico que la
+           miniatura de abajo. Se deja que use el alto disponible. */
+        .qr-zoom__image {
+            width: auto;
+            height: auto;
+            max-width: min(100%, 460px);
+            max-height: 78vh;
+            padding: .75rem;
+            border: 1px solid #edf0f4;
+            border-radius: .85rem;
+            background: #fff;
         }
     </style>
     <div class="page-title light-background py-4">
@@ -205,8 +251,9 @@
                                             <div class="d-flex flex-wrap align-items-center gap-2">
                                                 <div class="fs-4 fw-bold">{{ $numeroManual }}</div>
                                                 @if ($numeroManual)
-                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-copy-payment-number="{{ $numeroManual }}">
-                                                        <i class="bi bi-copy me-1" aria-hidden="true"></i>Copiar número
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" data-copy-payment-number="{{ $numeroManual }}"
+                                                        data-copy-name="El número receptor" data-copy-note="Verifica que el titular de la app sea el de la tienda antes de confirmar.">
+                                                        <i class="bi bi-copy me-1" aria-hidden="true"></i><span data-copy-label>Copiar número</span>
                                                     </button>
                                                 @endif
                                             </div>
@@ -218,22 +265,35 @@
                                             @endif
                                         </div>
                                         @endif
-                                        <div class="small text-muted mb-3" id="payment-copy-feedback" role="status" aria-live="polite"></div>
                                         <div class="bg-light rounded-3 p-3 mb-3">
                                             <div class="text-muted small">Importe exacto</div>
-                                            <div class="fs-4 fw-bold">{{ \App\Models\Ajuste::formatear_precio($orden->total) }}</div>
+                                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                                <div class="fs-4 fw-bold">{{ \App\Models\Ajuste::formatear_precio($orden->total) }}</div>
+                                                <button type="button" class="btn btn-sm btn-outline-primary" data-copy-payment-number="{{ $importeCopiable }}"
+                                                    data-copy-name="El importe" data-copy-note="Pégalo tal cual: no redondees ni cambies los centavos.">
+                                                    <i class="bi bi-copy me-1" aria-hidden="true"></i><span data-copy-label>Copiar importe</span>
+                                                </button>
+                                            </div>
                                             <div class="small text-muted">Referencia: pedido #{{ $orden->id }}</div>
                                         </div>
+                                        <!-- Debajo de los dos botones: el aviso de «copiado»
+                                             tiene que quedar pegado a lo que se copió. -->
+                                        <div class="small text-muted mb-3" id="payment-copy-feedback" role="status" aria-live="polite"></div>
                                     </div>
                                     @if ($qrManual && ! $destinoNoFiable)
                                         <div class="col-md-5 text-center">
                                             <div class="border rounded-4 bg-white p-3 d-inline-block shadow-sm">
-                                                <img src="{{ url('/storage/'.ltrim($qrManual, '/')) }}"
-                                                    alt="Código QR oficial de {{ $metodoManual }} del negocio"
-                                                    class="img-fluid" style="width: min(100%, 320px);" loading="eager">
+                                                <button type="button" class="checkout-qr-zoom" data-bs-toggle="modal"
+                                                    data-bs-target="#qrZoomModal" data-qr-zoom="{{ $metodoManual }}"
+                                                    aria-label="Agrandar el código QR de {{ $metodoManual }}">
+                                                    <img src="{{ url('/storage/'.ltrim($qrManual, '/')) }}"
+                                                        alt="Código QR oficial de {{ $metodoManual }} del negocio"
+                                                        class="img-fluid" style="width: min(100%, 320px);" loading="eager">
+                                                </button>
                                             </div>
                                             <div class="fw-semibold mt-3">Escanea con {{ $metodoManual }}</div>
                                             <div class="small text-muted">Confirma el importe y el titular antes de transferir.</div>
+                                            <div class="small text-primary">¿No lo puedes leer? Tócalo para agrandarlo.</div>
                                         </div>
                                     @else
                                         <div class="col-md-5">
@@ -421,11 +481,17 @@
                                 </div>
                                 <div class="ms-3">
                                     <small class="text-muted d-block">
-                                        Dirección de Envío
+                                        {{ $tituloDireccion }}
                                     </small>
-                                    <span>
-                                        {{ $orden->direccion_envio }}
-                                    </span>
+                                    @if ($lineasDireccion === [])
+                                        <span>{{ $orden->direccion_envio }}</span>
+                                    @else
+                                        <span>
+                                            @foreach ($lineasDireccion as $linea)
+                                                <span class="d-block">{{ $linea }}</span>
+                                            @endforeach
+                                        </span>
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -483,23 +549,100 @@
             </div>
         </div>
     </section>
+    @if ($qrManual && ! $destinoNoFiable)
+    <!-- Modal: QR agrandado, para escanearlo con el celular desde la pantalla -->
+    <div class="modal fade" id="qrZoomModal" tabindex="-1" aria-labelledby="qrZoomModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content text-start">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="qrZoomModalLabel">Código QR</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="qr-zoom-image" class="qr-zoom__image" src="" alt="">
+                    <p class="small text-muted mt-3 mb-0">Acerca el celular a esta pantalla para escanearlo.</p>
+                </div>
+                <div class="modal-footer justify-content-center border-0">
+                    <a id="qr-zoom-open" class="btn btn-sm btn-outline-primary rounded-pill px-3" href="#" target="_blank" rel="noopener">
+                        <i class="bi bi-arrows-fullscreen me-1" aria-hidden="true"></i>Abrir imagen completa
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
     <script>
-        const paymentCopyButton = document.querySelector('[data-copy-payment-number]');
         const paymentCopyFeedback = document.getElementById('payment-copy-feedback');
 
-        if (paymentCopyButton && paymentCopyFeedback) {
-            paymentCopyButton.addEventListener('click', async () => {
+        const mensajeCopiado = (texto, variante) => {
+            if (!paymentCopyFeedback) return;
+
+            paymentCopyFeedback.textContent = texto;
+            paymentCopyFeedback.className = `small mb-3 ${variante}`;
+            window.clearTimeout(paymentCopyFeedback.dataset.tiempo);
+            paymentCopyFeedback.dataset.tiempo = window.setTimeout(() => {
+                paymentCopyFeedback.textContent = '';
+                paymentCopyFeedback.className = 'small text-muted mb-3';
+            }, 5000);
+        };
+
+        const marcarCopiado = (button) => {
+            const icono = button.querySelector('i');
+            const etiqueta = button.querySelector('[data-copy-label]');
+            if (!icono || button.dataset.copiado === '1') return;
+
+            button.dataset.copiado = '1';
+            if (etiqueta) {
+                etiqueta.dataset.texto = etiqueta.textContent;
+                etiqueta.textContent = 'Copiado';
+            }
+            button.classList.remove('btn-outline-primary');
+            button.classList.add('btn-primary');
+
+            window.setTimeout(() => {
+                if (etiqueta) etiqueta.textContent = etiqueta.dataset.texto ?? etiqueta.textContent;
+                button.classList.remove('btn-primary');
+                button.classList.add('btn-outline-primary');
+                button.dataset.copiado = '0';
+            }, 1800);
+        };
+
+        // Dos botones (número e importe) comparten un solo aviso: el cliente tiene
+        // que saber qué copió, así que cada botón trae su propio texto.
+        document.querySelectorAll('[data-copy-payment-number]').forEach(button => {
+            button.addEventListener('click', async () => {
+                const nombre = button.dataset.copyName ?? 'El dato';
+
                 if (!navigator.clipboard || !window.isSecureContext) {
-                    paymentCopyFeedback.textContent = 'No se pudo copiar automáticamente. Selecciona el número y cópialo manualmente.';
+                    mensajeCopiado('Tu navegador no permite copiar automáticamente: selecciona el dato y cópialo a mano.', 'text-warning');
                     return;
                 }
 
                 try {
-                    await navigator.clipboard.writeText(paymentCopyButton.dataset.copyPaymentNumber);
-                    paymentCopyFeedback.textContent = 'Número copiado. Verifica el titular antes de transferir.';
+                    await navigator.clipboard.writeText(button.dataset.copyPaymentNumber);
+                    marcarCopiado(button);
+                    mensajeCopiado(`${nombre} copiado. ${button.dataset.copyNote ?? ''}`, 'text-success');
                 } catch (error) {
-                    paymentCopyFeedback.textContent = 'No se pudo copiar automáticamente. Selecciona el número y cópialo manualmente.';
+                    mensajeCopiado('No se pudo copiar. Selecciona el dato y cópialo manualmente.', 'text-warning');
                 }
+            });
+        });
+
+        // El QR se agranda con la imagen que ya está descargada en la página: no se
+        // vuelve a pedir el archivo ni se expone otra ruta.
+        const qrZoomModal = document.getElementById('qrZoomModal');
+        if (qrZoomModal) {
+            document.querySelectorAll('[data-qr-zoom]').forEach(boton => {
+                boton.addEventListener('click', () => {
+                    const miniatura = boton.querySelector('img');
+                    if (!miniatura) return;
+
+                    const grande = document.getElementById('qr-zoom-image');
+                    grande.src = miniatura.src;
+                    grande.alt = miniatura.alt;
+                    document.getElementById('qr-zoom-open').href = miniatura.src;
+                    qrZoomModal.querySelector('.modal-title').textContent = 'Código QR de '+boton.dataset.qrZoom;
+                });
             });
         }
 

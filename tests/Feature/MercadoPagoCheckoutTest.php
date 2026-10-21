@@ -257,7 +257,7 @@ class MercadoPagoCheckoutTest extends TestCase
         $this->actingAs($usuario)
             ->get(route('web.carrito.index'))
             ->assertOk()
-            ->assertSee('id="pago_bcp"', false)
+            ->assertSee('id="pago_yape"', false)
             ->assertDontSee('id="pago_tarjeta"', false);
     }
 
@@ -272,7 +272,7 @@ class MercadoPagoCheckoutTest extends TestCase
             ->assertDontSee('id="pago_tarjeta"', false);
     }
 
-    public function test_the_checkout_offers_payment_methods_in_yape_bcp_plin_and_card_order(): void
+    public function test_the_checkout_offers_payment_methods_in_yape_plin_and_card_order(): void
     {
         $usuario = $this->crearClienteConCarrito();
         $this->configurarPasarela();
@@ -287,13 +287,18 @@ class MercadoPagoCheckoutTest extends TestCase
             ->assertDontSee('Próximamente')
             ->assertSee('data-checkout-qr="tarjeta"', false)
             ->assertSee('id="payment-note-tarjeta"', false)
+            // El cliente sale de la tienda al presionar el botón: si el panel no
+            // dice que Mercado Pago tarda y que el cheque vence, cree que falló.
+            ->assertSee('se abre Mercado Pago en esta misma pestaña')
+            ->assertSee('El enlace vence en')
+            ->assertDontSee('id="pago_bcp"', false)
             ->assertSee('Elige un método de pago')
             ->assertDontSee('Crear pedido y enviar comprobante')
             ->getContent();
 
         $posiciones = array_map(
             fn ($metodo) => strpos($html, 'id="pago_'.$metodo.'"'),
-            ['yape', 'bcp', 'plin', 'tarjeta']
+            ['yape', 'plin', 'tarjeta']
         );
 
         $this->assertStringNotContainsString('false', json_encode($posiciones));
@@ -466,7 +471,7 @@ class MercadoPagoCheckoutTest extends TestCase
             ->assertOk()
             ->assertSee('Próximamente')
             ->assertSee('Estamos activando este medio de pago')
-            ->assertSee('id="pago_bcp"', false)
+            ->assertSee('id="pago_yape"', false)
             ->assertDontSee('id="pago_tarjeta"', false)
             ->assertDontSee('for="pago_tarjeta"', false);
     }
@@ -1076,6 +1081,84 @@ class MercadoPagoCheckoutTest extends TestCase
 
         $this->assertSame(1, Orden::count());
         $this->assertSame(1, DB::table('pedido_pagos_manuales')->count());
+    }
+
+    /**
+     * Dos envíos del mismo carrito (doble clic) no pueden dejar DOS cheques vivos
+     * de Mercado Pago: el cliente paga por el link que la tienda ya dio por
+     * perdido y ese cobro llega sin pedido asociado.
+     */
+    public function test_a_second_open_of_the_same_cart_reuses_the_pending_mercado_pago_checkout(): void
+    {
+        $usuario = $this->crearClienteConCarrito();
+        $this->configurarPasarela();
+        $this->simularPreferencia();
+
+        $servicio = app(MercadoPagoService::class);
+        $datos = [
+            'usuario_id' => (int) $usuario->id,
+            'items' => [['producto_id' => 1, 'nombre' => 'Laptop', 'cantidad' => 1, 'precio' => 550.0]],
+            'direccion_id' => null,
+            'direccion_envio' => 'Recojo en Tienda',
+            'modalidad_entrega' => 'recojo',
+            'monto' => 550.0,
+            'divisa' => 'PEN',
+            'correo' => $usuario->email,
+        ];
+
+        $primero = $servicio->abrirCheckout($datos);
+        $segundo = $servicio->abrirCheckout($datos);
+
+        // `intentos_pago_mercadopago` no tiene `id`: se identifica por referencia.
+        $this->assertSame($primero->referencia_externa, $segundo->referencia_externa,
+            'El mismo carrito debe reutilizar el cheque abierto.');
+        $this->assertSame('pref-555', $segundo->mercadopago_order_id);
+        $this->assertSame(1, IntentoPagoMercadoPago::count());
+
+        // Un carrito distinto sí necesita su propio cheque: el filtro es la firma
+        // del carrito, no "cualquier intento abierto de este cliente".
+        $servicio->abrirCheckout([...$datos, 'monto' => 610.0]);
+        $this->assertSame(2, IntentoPagoMercadoPago::count());
+
+        // Y un cheque que ya quedó ligado a un pedido no se presta a otro: si el
+        // cliente vuelve a armar el mismo carrito, su pago debe ser suyo.
+        $primero->pedido_id = 777;
+        $primero->save();
+
+        $nuevo = $servicio->abrirCheckout($datos);
+        $this->assertNotSame($primero->referencia_externa, $nuevo->referencia_externa);
+        $this->assertSame(3, IntentoPagoMercadoPago::count());
+    }
+
+    /**
+     * En recojo el cliente retira en el local: un pedido sin dirección registrada
+     * es un pedido válido, y la pantalla ya no le pide una.
+     */
+    public function test_store_pickup_saves_the_order_without_any_address(): void
+    {
+        $usuario = $this->crearClienteConCarrito();
+        Direccion::where('usuario_id', $usuario->id)->delete();
+
+        $this->actingAs($usuario)
+            ->from(route('web.carrito.index'))
+            ->post(route('web.pedidos.pago_manual'), [
+                'name' => 'Cliente GALY',
+                'dni' => '12345678',
+                'telefono' => '987654321',
+                'privacy_consent' => '1',
+                'metodo_pago' => 'yape',
+                'modalidad_entrega' => 'recojo',
+                'shipping_option' => 'pickup',
+            ])
+            ->assertRedirect();
+
+        $pedido = Orden::firstOrFail();
+
+        $this->assertNull($pedido->direccion_id);
+        $this->assertSame('Recojo en Tienda', $pedido->direccion_envio);
+        $this->assertSame('recojo', $pedido->modalidad_entrega);
+        // Recojo no suma envío: el total es exactamente el subtotal del carrito.
+        $this->assertSame(550.0, round((float) $pedido->total, 2));
     }
 
     public function test_the_customer_receives_an_email_when_the_order_is_registered(): void

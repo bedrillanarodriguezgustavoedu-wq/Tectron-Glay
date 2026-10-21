@@ -93,7 +93,7 @@ class PagoManualTest extends TestCase
             ->assertSessionHas('mensaje', 'No se encontró una cuenta GALY vinculada a este correo. Inicia sesión con tu cuenta GALY para compartir el carrito.');
     }
 
-    public function test_manual_checkout_requires_personal_details_and_an_address_even_for_store_pickup(): void
+    public function test_manual_checkout_requires_personal_details_for_pickup_and_no_longer_an_address(): void
     {
         $usuario = User::factory()->create(['galy_user_id' => 42]);
 
@@ -104,7 +104,50 @@ class PagoManualTest extends TestCase
                 'modalidad_entrega' => 'recojo',
             ])
             ->assertRedirect(route('web.carrito.index'))
-            ->assertSessionHasErrors(['name', 'dni', 'telefono', 'privacy_consent', 'direccion_id']);
+            ->assertSessionHasErrors(['name', 'dni', 'telefono', 'privacy_consent'])
+            // El recojo se retira en la tienda: exigir una dirección era
+            // bloquear a un cliente que no tiene ninguna registrada.
+            ->assertSessionDoesntHaveErrors('direccion_id');
+    }
+
+    public function test_manual_checkout_still_requires_an_address_for_delivery(): void
+    {
+        $usuario = User::factory()->create(['galy_user_id' => 42]);
+
+        $this->actingAs($usuario)
+            ->from(route('web.carrito.index'))
+            ->post(route('web.pedidos.pago_manual'), [
+                'name' => $usuario->name,
+                'dni' => '12345678',
+                'telefono' => '987654321',
+                'privacy_consent' => '1',
+                'metodo_pago' => 'yape',
+                'modalidad_entrega' => 'envio',
+            ])
+            ->assertRedirect(route('web.carrito.index'))
+            ->assertSessionHasErrors('direccion_id');
+    }
+
+    public function test_recojo_pedido_pasa_validacion_sin_direccion(): void
+    {
+        $usuario = User::factory()->create(['galy_user_id' => 42, 'google_id' => 'google-42']);
+
+        $this->actingAs($usuario)
+            ->from(route('web.carrito.index'))
+            ->post(route('web.pedidos.pago_manual'), [
+                'name' => $usuario->name,
+                'dni' => '12345678',
+                'telefono' => '987654321',
+                'privacy_consent' => '1',
+                'metodo_pago' => 'yape',
+                'modalidad_entrega' => 'recojo',
+                'shipping_option' => 'pickup',
+            ])
+            // Sin ajustes de Yape el pedido no llega a crearse, pero el rechazo
+            // es por el método de pago: demuestra que la dirección dejó de
+            // bloquear el recojo en la validación.
+            ->assertSessionDoesntHaveErrors('direccion_id')
+            ->assertSessionHas('mensaje', 'Elige otro método de pago por ahora: la tienda aún no puede recibir transferencias por Yape.');
     }
 
     public function test_manual_checkout_rejects_invalid_dni_and_phone_numbers(): void
@@ -181,30 +224,34 @@ class PagoManualTest extends TestCase
         $this->assertFalse(Ajuste::esNumeroDeTarjeta(''));
     }
 
-    public function test_a_placeholder_bcp_account_is_never_offered_as_a_transfer_destination(): void
+    /**
+     * La transferencia BCP ya no se ofrece en el carrito (decisión del dueño,
+     * 2026-10-21), así que ningún pedido puede nacer con ese destino: ni con la
+     * cuenta bien escrita, ni con un CCI de prueba o incompleto. El control de
+     * calidad del CCI sigue vivo en
+     * {@see self::test_the_destination_rules_only_accept_a_real_bank_account()}
+     * porque la app y el panel admin aún muestran pedidos de BCP.
+     */
+    public function test_nadie_puede_crear_un_pedido_con_transferencia_bcp_forzada_por_post(): void
     {
-        $this->configurarAjustes([
-            'web_bcp_cci' => '00000000000000000000',
-            'web_bcp_titular' => 'CUENTA DE PRUEBA - NO TRANSFERIR',
-        ]);
+        $cuentas = [
+            ['web_bcp_cci' => '00000000000000000000', 'web_bcp_titular' => 'CUENTA DE PRUEBA - NO TRANSFERIR'],
+            ['web_bcp_cci' => '0011000200030004005', 'web_bcp_titular' => 'TECTRON GALY EIRL'],
+            ['web_bcp_cci' => '00110002000300040055', 'web_bcp_titular' => 'TECTRON GALY EIRL'],
+        ];
 
-        $this->actingAs($this->clienteListo())
-            ->post(route('web.pedidos.pago_manual'), $this->checkout('bcp'))
-            ->assertRedirect(route('web.carrito.index'))
-            ->assertSessionHas('mensaje', 'Elige otro método de pago por ahora: la tienda aún no puede recibir transferencias por BCP.');
-    }
+        $cliente = $this->clienteListo();
 
-    public function test_a_cci_with_a_typo_is_rejected_before_anyone_transfers_to_it(): void
-    {
-        $this->configurarAjustes([
-            'web_bcp_cci' => '0011000200030004005',
-            'web_bcp_titular' => 'TECTRON GALY EIRL',
-        ]);
+        foreach ($cuentas as $datos) {
+            DB::table('ajustes')->delete();
+            $this->configurarAjustes($datos);
 
-        $this->actingAs($this->clienteListo())
-            ->post(route('web.pedidos.pago_manual'), $this->checkout('bcp'))
-            ->assertRedirect(route('web.carrito.index'))
-            ->assertSessionHas('mensaje', 'Elige otro método de pago por ahora: la tienda aún no puede recibir transferencias por BCP.');
+            // Con un CCI válido el intento anterior avanzaba hasta la dirección
+            // (inexistente a propósito): ahora la regla `in:` lo frena antes.
+            $this->actingAs($cliente)
+                ->post(route('web.pedidos.pago_manual'), $this->checkout('bcp'))
+                ->assertSessionHasErrors('metodo_pago');
+        }
     }
 
     public function test_a_receiver_number_that_is_not_a_mobile_is_rejected(): void

@@ -4,7 +4,12 @@
     @php
         $yapeDisponible = \App\Models\Ajuste::motivoParaOcultarPagoWeb($ajuste, 'yape') === null;
         $plinDisponible = \App\Models\Ajuste::motivoParaOcultarPagoWeb($ajuste, 'plin') === null;
-        $bcpDisponible = \App\Models\Ajuste::motivoParaOcultarPagoWeb($ajuste, 'bcp') === null;
+        // Decisión del dueño (2026-10-21): la transferencia BCP ya no se ofrece en
+        // el carrito. Los datos siguen en Ajustes y el candado
+        // `motivoParaOcultarPagoWeb` queda intacto, así que volver a ofrecerla es
+        // cambiar este `false`; los pedidos ya pagados por BCP se siguen viendo en
+        // el panel.
+        $bcpDisponible = false;
         $mercadoPago = app(\App\Services\MercadoPagoService::class);
         // Nadie puede forzar aquí lo que Mercado Pago no aceptó: un `true` en
         // esta línea enseña la tarjeta, el cliente paga mal y el pedido queda
@@ -20,6 +25,7 @@
     @endphp
     <style>
         .checkout-stepper .checkout-step {
+            position: relative;
             color: #7b8492;
             z-index: 0;
         }
@@ -27,11 +33,10 @@
         .checkout-stepper .checkout-step:not(:last-child)::after {
             content: "";
             position: absolute;
-            height: 2px;
-            background: #dee2e6;
             top: 19px;
             left: calc(50% + 25px);
             width: calc(100% - 50px);
+            border-top: 2px dashed #ced4da;
             z-index: -1;
         }
 
@@ -65,19 +70,90 @@
             border-radius: .5rem;
         }
 
-        .checkout-stepper .checkout-step.is-active,
+        /* El paso recorrido se pinta de verde y cambia el número por una palomita.
+           El número sigue en el DOM, a tamaño cero, para que un lector de pantalla
+           todavía pueda decir «paso 1» y no solo «paso, completado». */
         .checkout-stepper .checkout-step.is-complete {
-            color: #0d6efd;
+            color: #198754;
         }
 
-        .checkout-stepper .checkout-step.is-active .checkout-step-number,
         .checkout-stepper .checkout-step.is-complete .checkout-step-number {
             color: #fff;
-            background: #0d6efd;
+            background: #198754;
+            font-size: 0;
+        }
+
+        .checkout-stepper .checkout-step.is-complete .checkout-step-number::after {
+            content: "\2713";
+            font-size: 1.15rem;
+            line-height: 1;
+        }
+
+        /* El paso en curso es el único que se ve en rojo fuerte: es donde está el cliente. */
+        .checkout-stepper .checkout-step.is-active {
+            color: #dc3545;
+        }
+
+        .checkout-stepper .checkout-step.is-active .checkout-step-number {
+            color: #fff;
+            background: #dc3545;
         }
 
         .checkout-stepper .checkout-step.is-complete::after {
-            background: #0d6efd;
+            border-top-color: #198754;
+        }
+
+        .checkout-stepper .checkout-step:not(.is-active):not(.is-complete) .checkout-step-number {
+            color: #adb5bd;
+            background: #f1f3f5;
+        }
+
+        /* Un paso verde se puede volver a tocar para corregir datos; el actual no,
+           porque ya lo estás viendo. */
+        .checkout-stepper .checkout-step.is-complete .checkout-step-trigger:hover .checkout-step-number {
+            background: #157347;
+        }
+
+        .checkout-stepper .checkout-step.is-complete .checkout-step-trigger:hover .checkout-step-label {
+            text-decoration: underline;
+        }
+
+        .checkout-stepper .checkout-step.is-active .checkout-step-trigger {
+            cursor: default;
+        }
+
+        /* El tema fuerza `color: var(--color-primary) !important` sobre cualquier
+           .btn-outline-primary (layouts/web.blade.php:128), así que la opción
+           seleccionada quedaba con letra azul sobre fondo azul: el cliente veía un
+           bloque vacío y no sabía qué modalidad había elegido. */
+        .btn-check:checked + .btn-outline-primary {
+            background-color: var(--color-primary, #0d6efd) !important;
+            border-color: var(--color-primary, #0d6efd) !important;
+            color: #fff !important;
+        }
+
+        .punto-recojo-card {
+            background: var(--bs-primary-bg-subtle, #eef6ff);
+            border: 1px solid var(--color-primary, #0d6efd);
+            border-radius: .75rem;
+        }
+
+        .punto-recojo-opcion {
+            background: #fff;
+            border: 1px solid var(--bs-border-color, #dee2e6);
+            border-radius: .75rem;
+            padding: .75rem;
+            cursor: pointer;
+        }
+
+        .btn-check:checked + .punto-recojo-opcion {
+            background: var(--bs-primary-bg-subtle, #eef6ff);
+            border-color: var(--color-primary, #0d6efd);
+        }
+
+        .btn-check:focus-visible + .punto-recojo-opcion {
+            outline: 2px solid var(--color-primary, #0d6efd);
+            outline-offset: 2px;
         }
 
         @media (min-width: 992px) {
@@ -275,6 +351,34 @@
             border-radius: 1rem;
             background: #fff;
             box-shadow: 0 .5rem 1.5rem rgba(31, 45, 61, .08);
+        }
+
+        /* El QR sube como foto de pantalla: el cuadro entero se ve grande pero el
+           código adentro es chico, así que agrandarlo no es un adorno. */
+        /* El tema ya fija `button:not(:disabled) { cursor: pointer }`, así que
+           sin el :not() esta regla empataría y perdería por orden de carga. */
+        button.checkout-qr-preview__image-wrap:not(:disabled) {
+            cursor: zoom-in;
+            line-height: 0;
+        }
+
+        button.checkout-qr-preview__image-wrap:focus-visible {
+            outline: 2px solid var(--color-primary, #0d6efd);
+            outline-offset: 2px;
+        }
+
+        /* El QR real sube como foto de pantalla vertical: si se fuerza un cuadro
+           1:1, la foto se encoge para caber y el código se ve más chico que la
+           miniatura de abajo. Se deja que use el alto disponible. */
+        .qr-zoom__image {
+            width: auto;
+            height: auto;
+            max-width: min(100%, 460px);
+            max-height: 78vh;
+            padding: .75rem;
+            border: 1px solid #edf0f4;
+            border-radius: .85rem;
+            background: #fff;
         }
 
         .checkout-bcp-data {
@@ -551,6 +655,9 @@
                             $costoEnvioInicial = $carritos->isNotEmpty() && ! $envioGratis
                                 ? $reglasEnvio['costo_estandar']
                                 : 0;
+                            // Si el envío volvió con un error, la modalidad elegida
+                            // no puede reiniciarse a «envío» sin avisar al cliente.
+                            $modalidadActual = old('modalidad_entrega', 'envio');
                         @endphp
 
                         @if ($carritos->isNotEmpty())
@@ -578,7 +685,7 @@
 
                                         @if ($carritos->isNotEmpty())
                                             <form action="{{ route('web.pedidos.pago_manual') }}" method="POST" id="checkout-form" class="mt-4" novalidate
-                                                data-initial-step="{{ $errors->hasAny(['name', 'dni', 'telefono']) ? 1 : ($errors->hasAny(['direccion_id', 'modalidad_entrega']) ? 2 : ($errors->any() ? 3 : 1)) }}">
+                                                data-initial-step="{{ $errors->hasAny(['name', 'dni', 'telefono', 'privacy_consent']) ? 1 : ($errors->hasAny(['direccion_id', 'modalidad_entrega']) ? 2 : ($errors->any() ? 3 : 1)) }}">
                                                 @csrf
                                                 <input type="hidden" name="total" id="hidden-total" value="{{ $subtotal_acumulado + $costoEnvioInicial }}">
                                                 <input type="hidden" name="shipping_option" id="hidden-shipping-option" value="{{ $costoEnvioInicial === 0 ? 'free' : 'standard' }}">
@@ -588,7 +695,7 @@
                                                         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
                                                             <div>
                                                                 <h2 class="h4 fw-bold mb-1">Finaliza tu compra</h2>
-                                                                <p class="text-muted small mb-0">Completa los pasos para confirmar tu pedido.</p>
+                                                                <p class="text-muted small mb-0">Completa los pasos para confirmar tu pedido. Los campos marcados con <span class="text-danger">*</span> son obligatorios.</p>
                                                             </div>
                                                             <span class="badge rounded-pill bg-light text-primary border px-3 py-2">
                                                                 Paso <span id="checkout-current-step">1</span> de 3
@@ -597,7 +704,7 @@
                                                         <nav aria-label="Pasos de compra" class="checkout-stepper mb-4">
                                                             <ol class="list-unstyled d-flex align-items-start mb-0">
                                                                 @foreach (['Identificación', 'Entrega', 'Pago'] as $stepIndex => $stepLabel)
-                                                                    <li class="checkout-step flex-fill text-center {{ $stepIndex < 2 ? 'position-relative' : '' }}"
+                                                                    <li class="checkout-step flex-fill text-center"
                                                                         data-checkout-indicator="{{ $stepIndex + 1 }}">
                                                                         <button type="button" class="checkout-step-trigger" data-checkout-go="{{ $stepIndex + 1 }}"
                                                                             aria-label="Ir al paso {{ $stepIndex + 1 }}: {{ $stepLabel }}"
@@ -667,7 +774,7 @@
                                                                     @enderror
                                                                 </div>
                                                                 <div class="col-12">
-                                                                    <div class="form-check border rounded-3 p-3 @error('privacy_consent') border-danger @enderror">
+                                                                    <div class="form-check border rounded-3 p-3 ps-5 @error('privacy_consent') border-danger @enderror">
                                                                         <input class="form-check-input" type="checkbox" id="checkout-privacy-consent"
                                                                             name="privacy_consent" value="1" @checked(old('privacy_consent')) required>
                                                                         <label class="form-check-label" for="checkout-privacy-consent">
@@ -683,40 +790,93 @@
                                                             </div>
                                                             <div class="d-flex justify-content-end mt-4">
                                                                 <button type="button" class="btn btn-primary rounded-pill px-4" data-checkout-next="2">
-                                                                    Continuar a la entrega <i class="bi bi-arrow-right ms-1"></i>
+                                                                    Continuar con la entrega <i class="bi bi-arrow-right ms-1"></i>
                                                                 </button>
                                                             </div>
                                                         </section>
 
                                                         <section class="checkout-step-panel" id="checkout-panel-2" data-checkout-panel="2" aria-labelledby="checkout-step-2-title" hidden>
                                                             <h2 id="checkout-step-2-title" class="h4 fw-bold mb-2">
-                                                                <i class="bi bi-truck me-2 text-primary"></i>Dirección y entrega
+                                                                <i class="bi bi-truck me-2 text-primary"></i>Entrega de Productos
                                                             </h2>
-                                                            <p class="text-muted mb-4">Registra una dirección y elige si deseas envío o recojo en tienda.</p>
+                                                            <div class="border rounded-4 p-3 p-lg-4 mb-4">
+                                                            <p class="fw-semibold mb-3">¿Cómo deseas que te entreguen los productos?</p>
 
                                                             <div class="mb-4">
                                                                 <span class="summary-label fw-semibold d-block mb-2">Modalidad de entrega</span>
-                                                                <div class="btn-group w-100" role="group" aria-label="Modalidad de entrega">
-                                                                    <input type="radio" class="btn-check" name="modalidad_entrega" id="modalidad_envio" value="envio" checked autocomplete="off">
+                                                                <div class="btn-group w-100 flex-column flex-lg-row" role="group" aria-label="Modalidad de entrega">
+                                                                    <input type="radio" class="btn-check" name="modalidad_entrega" id="modalidad_envio" value="envio" @checked($modalidadActual === 'envio') autocomplete="off">
                                                                     <label class="btn btn-outline-primary py-2" for="modalidad_envio">
                                                                         <i class="bi bi-truck me-1"></i> Envío a domicilio
                                                                     </label>
-                                                                    <input type="radio" class="btn-check" name="modalidad_entrega" id="modalidad_recojo" value="recojo" autocomplete="off">
+                                                                    <input type="radio" class="btn-check" name="modalidad_entrega" id="modalidad_recojo" value="recojo" @checked($modalidadActual === 'recojo') autocomplete="off">
                                                                     <label class="btn btn-outline-primary py-2" for="modalidad_recojo">
                                                                         <i class="bi bi-shop me-1"></i> Recojo en tienda
                                                                     </label>
+                                                                    <input type="radio" class="btn-check" name="modalidad_entrega" id="modalidad_provincia" value="provincia" @checked($modalidadActual === 'provincia') autocomplete="off">
+                                                                    <label class="btn btn-outline-primary py-2" for="modalidad_provincia">
+                                                                        <i class="bi bi-box-seam me-1"></i> Envío a provincias
+                                                                    </label>
+                                                                </div>
+                                                                <div class="alert alert-info small mb-0 mt-3 {{ $modalidadActual === 'provincia' ? '' : 'd-none' }}" id="provincia-note" role="note">
+                                                                    Despachamos a tu ciudad por agencia. <strong>El costo del envío a provincias se coordina contigo por WhatsApp o teléfono antes de despachar</strong>, y el pedido no sale hasta que lo confirmes.
+                                                                </div>
+                                                                @php
+                                                                    // Con un solo punto no tiene sentido obligar a elegir; con
+                                                                    // varios, el cliente decide dónde pasa a retirar.
+                                                                    $puntosDisponibles = $puntosRecojo ?? collect();
+                                                                    $puntoElegido = (int) old('punto_recojo_id', $puntosDisponibles->count() === 1 ? $puntosDisponibles->first()->id : 0);
+                                                                @endphp
+                                                                <div class="mt-3 {{ $modalidadActual === 'recojo' ? '' : 'd-none' }}" id="punto-recojo-card">
+                                                                    @if ($puntosDisponibles->isNotEmpty())
+                                                                        <span class="summary-label fw-semibold d-block mb-2">Elige dónde recoger</span>
+                                                                        <div class="row g-2">
+                                                                            @foreach ($puntosDisponibles as $punto)
+                                                                                <div class="col-12 col-lg-6">
+                                                                                    <input class="btn-check" type="radio" name="punto_recojo_id" id="punto-recojo-{{ $punto->id }}" value="{{ $punto->id }}" autocomplete="off" @checked($puntoElegido === $punto->id)>
+                                                                                    <label class="punto-recojo-opcion w-100" for="punto-recojo-{{ $punto->id }}">
+                                                                                        <span class="fw-semibold d-block">{{ $punto->nombre }}</span>
+                                                                                        <span class="small d-block">{{ $punto->direccion }}</span>
+                                                                                        @if (filled($punto->horario))
+                                                                                            <span class="small text-muted d-block"><i class="bi bi-clock me-1"></i>{{ $punto->horario }}</span>
+                                                                                        @endif
+                                                                                        @if (filled($punto->telefono))
+                                                                                            <span class="small text-muted d-block"><i class="bi bi-telephone me-1"></i>{{ $punto->telefono }}</span>
+                                                                                        @endif
+                                                                                    </label>
+                                                                                </div>
+                                                                            @endforeach
+                                                                        </div>
+                                                                        <div class="alert alert-warning py-2 px-3 mt-2 d-none" id="punto-recojo-alert" role="alert">
+                                                                            Elige en qué punto quieres recoger tu pedido.
+                                                                        </div>
+                                                                        <p class="mb-0 small text-muted mt-2">Te avisamos por WhatsApp cuando el pedido esté listo para recoger.</p>
+                                                                    @else
+                                                                        <div class="punto-recojo-card p-3">
+                                                                            <p class="fw-semibold mb-1"><i class="bi bi-shop me-1 text-primary"></i>Punto de recojo</p>
+                                                                            @if (filled($ajuste?->direccion))
+                                                                                <p class="mb-1">{{ $ajuste->direccion }}</p>
+                                                                            @else
+                                                                                <p class="mb-1 text-warning">La tienda aún no publicó su dirección de recojo: te la confirmamos por WhatsApp al aprobar el pedido.</p>
+                                                                            @endif
+                                                                            <p class="mb-0 small text-muted">Te avisamos por WhatsApp cuando el pedido esté listo para recoger.</p>
+                                                                            @if (filled($ajuste?->telefono))
+                                                                                <p class="mb-0 small text-muted">Teléfono de contacto: <strong>{{ $ajuste->telefono }}</strong>.</p>
+                                                                            @endif
+                                                                        </div>
+                                                                    @endif
                                                                 </div>
                                                             </div>
 
-                                                            <div class="mb-4" id="shipping-address-container">
-                                                                <label for="direccion_id_select" class="summary-label fw-semibold mb-2 d-block">Dirección registrada <span class="text-danger">*</span></label>
-                                                                <p class="small text-muted mb-2">La dirección queda asociada a tu pedido, incluso si eliges recojo en tienda.</p>
+                                                            <div class="mb-4" id="shipping-address-container" style="display: {{ $modalidadActual === 'recojo' ? 'none' : 'block' }}">
+                                                                <label for="direccion_id_select" class="summary-label fw-semibold mb-2 d-block">Dirección de destino <span class="text-danger">*</span></label>
+                                                                <p class="small text-muted mb-2" id="shipping-address-hint">Usamos esta dirección para despachar tu pedido.</p>
                                                                 <div id="no-addresses-alert" class="alert alert-warning py-2 px-3 my-2 {{ $direcciones->isNotEmpty() ? 'd-none' : '' }}" style="font-size: 13px;">
                                                                     <i class="bi bi-exclamation-triangle-fill me-1"></i>Registra y selecciona una dirección antes de continuar.
                                                                 </div>
                                                                 <select class="form-select {{ $direcciones->isEmpty() ? 'd-none' : '' }}" name="direccion_id" id="direccion_id_select" @required($direcciones->isNotEmpty())>
                                                                     @foreach ($direcciones as $dir)
-                                                                        <option value="{{ $dir->id }}" {{ $dir->es_predeterminada ? 'selected' : '' }}>
+                                                                        <option value="{{ $dir->id }}" data-provincia-id="{{ $dir->provincia_id }}" {{ $dir->es_predeterminada ? 'selected' : '' }}>
                                                                             [{{ $dir->alias }}] {{ $dir->direccion_exacta }} ({{ $dir->provincia->nombre }}, {{ $dir->departamento->nombre }})
                                                                         </option>
                                                                     @endforeach
@@ -725,9 +885,51 @@
                                                                     data-bs-toggle="modal" data-bs-target="#expressAddressModal">
                                                                     <i class="bi bi-plus-circle me-1"></i>Agregar dirección
                                                                 </button>
+
+                                                                @php
+                                                                    // Las agencias dependen de la ciudad del pedido, así que
+                                                                    // se pintan todas y el JS deja visible solo el grupo de
+                                                                    // la provincia elegida. Sin agencias en esa provincia,
+                                                                    // el bloque entero no existe y el flujo no cambia nada.
+                                                                    $agenciasDisponibles = $agencias ?? collect();
+                                                                    $agenciaElegida = (int) old('agencia_provincia_id', 0);
+                                                                @endphp
+                                                                @if ($agenciasDisponibles->isNotEmpty())
+                                                                    <div class="mt-3 d-none" id="agencias-provincia-card">
+                                                                        @foreach ($agenciasDisponibles as $provinciaId => $agenciasDeProvincia)
+                                                                            <div class="agencias-provincia-grupo d-none" data-provincia-id="{{ $provinciaId }}">
+                                                                                <span class="summary-label fw-semibold d-block mb-2">Elige dónde recoger en {{ $agenciasDeProvincia->first()->provincia?->nombre }}</span>
+                                                                                <div class="row g-2">
+                                                                                    @foreach ($agenciasDeProvincia as $agencia)
+                                                                                        <div class="col-12 col-lg-6">
+                                                                                            <input class="btn-check" type="radio" name="agencia_provincia_id" id="agencia-{{ $agencia->id }}" value="{{ $agencia->id }}" autocomplete="off" @checked($agenciaElegida === $agencia->id)>
+                                                                                            <label class="punto-recojo-opcion w-100" for="agencia-{{ $agencia->id }}">
+                                                                                                <span class="fw-semibold d-block">{{ $agencia->nombre }}</span>
+                                                                                                <span class="small d-block">{{ $agencia->direccion }}</span>
+                                                                                                @if (filled($agencia->horario))
+                                                                                                    <span class="small text-muted d-block"><i class="bi bi-clock me-1"></i>{{ $agencia->horario }}</span>
+                                                                                                @endif
+                                                                                                @if (filled($agencia->telefono))
+                                                                                                    <span class="small text-muted d-block"><i class="bi bi-telephone me-1"></i>{{ $agencia->telefono }}</span>
+                                                                                                @endif
+                                                                                            </label>
+                                                                                        </div>
+                                                                                    @endforeach
+                                                                                </div>
+                                                                            </div>
+                                                                        @endforeach
+                                                                        <div class="alert alert-warning py-2 px-3 mt-2 d-none" id="agencia-provincia-alert" role="alert">
+                                                                            Elige en qué agencia de tu ciudad quieres recoger tu pedido.
+                                                                        </div>
+                                                                        <div class="alert alert-warning py-2 px-3 mt-2 d-none" id="agencia-provincia-nota" role="note">
+                                                                            Aún no tenemos agencia en la ciudad de esa dirección: el despacho se coordina contigo por WhatsApp antes de enviar.
+                                                                        </div>
+                                                                        <p class="mb-0 small text-muted mt-2">La agencia guarda tu pedido hasta que pases a buscarlo; te avisamos por WhatsApp cuando llegue.</p>
+                                                                    </div>
+                                                                @endif
                                                             </div>
 
-                                                            <div class="mb-3" id="shipping-options-container">
+                                                            <div class="mb-3" id="shipping-options-container" style="display: {{ $modalidadActual === 'envio' ? 'block' : 'none' }}">
                                                                 <span class="summary-label fw-semibold d-block mb-2">Velocidad de entrega</span>
                                                                 <div class="form-check border rounded-3 p-3 ps-5 mb-2">
                                                                     <input class="form-check-input shipping-radio" type="radio" name="shipping_selector" id="standard_shipping" value="standard" checked>
@@ -749,21 +951,25 @@
                                                                 </div>
                                                             </div>
 
-                                                            <div class="d-flex justify-content-between gap-2 mt-4">
-                                                                <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-checkout-previous="1">
-                                                                    <i class="bi bi-arrow-left me-1"></i>Volver
+                                                            </div>
+
+                                                            <div class="d-flex flex-wrap justify-content-between gap-2 mt-4">
+                                                                <button type="button" class="btn btn-link text-muted px-0" data-checkout-previous="1">
+                                                                    <i class="bi bi-arrow-left me-1"></i>Volver a mis datos
                                                                 </button>
                                                                 <button type="button" class="btn btn-primary rounded-pill px-4" data-checkout-next="3">
-                                                                    Continuar al pago <i class="bi bi-arrow-right ms-1"></i>
+                                                                    Continuar con el pago <i class="bi bi-arrow-right ms-1"></i>
                                                                 </button>
                                                             </div>
                                                         </section>
 
                                                         <section class="checkout-step-panel" id="checkout-panel-3" data-checkout-panel="3" aria-labelledby="checkout-step-3-title" hidden>
                                                             <h2 id="checkout-step-3-title" class="h4 fw-bold mb-2">
-                                                                <i class="bi bi-credit-card me-2 text-primary"></i>Método de pago
+                                                                <i class="bi bi-credit-card me-2 text-primary"></i>Forma de Pago
                                                             </h2>
-                                                            <p class="text-muted mb-4">Toca el método que usarás y te mostramos sus datos. Con Yape, Plin o BCP transfiere siempre el total exacto, verifica el titular y adjunta tu comprobante al crear el pedido. Con tarjeta el pago lo confirma Mercado Pago solo, sin comprobantes.</p>
+                                                            <div class="border rounded-4 p-3 p-lg-4 mb-4">
+                                                            <p class="fw-semibold mb-2">¿Deseas pagar online o con efectivo/transferencia?</p>
+                                                            <p class="text-muted small mb-4">Con Yape o Plin transfiere siempre el total exacto, verifica el titular y adjunta tu comprobante al crear el pedido. Con tarjeta el pago lo confirma Mercado Pago solo, sin comprobantes.</p>
                                                             <div class="mb-4" id="payment-options-container" role="radiogroup" aria-labelledby="payment-method-label">
                                                                 <span class="summary-label fw-semibold d-block mb-2" id="payment-method-label">Elige cómo pagar</span>
                                                                 @php $metodoSolicitado = old('metodo_pago'); @endphp
@@ -822,11 +1028,13 @@
                                                                                 <div class="checkout-account">
                                                                                     <div class="text-center">
                                                                                         <h3 class="h6 fw-bold mb-2">Escanea el QR de Yape</h3>
-                                                                                        <div class="checkout-qr-preview__image-wrap">
+                                                                                        <button type="button" class="checkout-qr-preview__image-wrap" data-bs-toggle="modal" data-bs-target="#qrZoomModal" data-qr-zoom="Yape" aria-label="Agrandar el código QR de Yape">
                                                                                             <img class="checkout-qr-preview__image" src="{{ asset('storage/'.ltrim($ajuste->web_yape_qr, '/')) }}"
                                                                                                 alt="Código QR oficial de Yape de {{ $ajuste->web_yape_titular }}" loading="eager">
-                                                                                        </div>
-                                                                                        <p class="small text-muted mt-2 mb-0">Abre Yape y escanea este QR.</p>
+                                                                                        </button>
+                                                                                        <p class="small text-muted mt-2 mb-0">Abre Yape y escanea este QR.<br>
+                                                                                            <span class="fw-semibold text-body">¿No lo puedes leer? Tócalo para agrandarlo.</span>
+                                                                                        </p>
                                                                                     </div>
                                                                                     <div class="checkout-account__data">
                                                                                         <p class="small text-muted mb-3">Comprueba que el nombre del destinatario coincida antes de pagar.</p>
@@ -861,11 +1069,13 @@
                                                                                 <div class="checkout-account">
                                                                                     <div class="text-center">
                                                                                         <h3 class="h6 fw-bold mb-2">Escanea el QR de Plin</h3>
-                                                                                        <div class="checkout-qr-preview__image-wrap">
+                                                                                        <button type="button" class="checkout-qr-preview__image-wrap" data-bs-toggle="modal" data-bs-target="#qrZoomModal" data-qr-zoom="Plin" aria-label="Agrandar el código QR de Plin">
                                                                                             <img class="checkout-qr-preview__image" src="{{ asset('storage/'.ltrim($ajuste->web_plin_qr, '/')) }}"
                                                                                                 alt="Código QR oficial de Plin de {{ $ajuste->web_plin_titular }}" loading="eager">
-                                                                                        </div>
-                                                                                        <p class="small text-muted mt-2 mb-0">Abre Plin y escanea este QR.</p>
+                                                                                        </button>
+                                                                                        <p class="small text-muted mt-2 mb-0">Abre Plin y escanea este QR.<br>
+                                                                                            <span class="fw-semibold text-body">¿No lo puedes leer? Tócalo para agrandarlo.</span>
+                                                                                        </p>
                                                                                     </div>
                                                                                     <div class="checkout-account__data">
                                                                                         <p class="small text-muted mb-3">Comprueba que el nombre del destinatario coincida antes de pagar.</p>
@@ -948,9 +1158,10 @@
                                                                             <div data-checkout-qr="tarjeta" @if ($metodoSolicitado !== 'tarjeta') hidden @endif>
                                                                                 <div class="checkout-account">
                                                                                     <div class="text-center text-md-start">
-                                                                                        <h3 class="h6 fw-bold mb-2"><i class="bi bi-credit-card me-1" aria-hidden="true"></i>Datos de la tarjeta</h3>
+                                                                                        <h3 class="h6 fw-bold mb-2"><i class="bi bi-credit-card me-1" aria-hidden="true"></i>Pago con tarjeta Visa</h3>
                                                                                         <p class="small text-muted mb-3">Completa el pago en la pantalla segura de Mercado Pago. Aquí solo eliges el método: la tienda no ve ni guarda el número, la fecha ni el CVV de tu tarjeta.</p>
                                                                                         <span class="checkout-qr-preview__amount">Total a pagar: <span data-checkout-qr-total>{{ \App\Models\Ajuste::formatear_precio($subtotal_acumulado + $costoEnvioInicial) }}</span></span>
+                                                                                        <span class="d-block small text-muted mt-2">Al presionar el botón se abre Mercado Pago en esta misma pestaña. El enlace vence en {{ $mercadoPago->minutosVigencia() }} minutos; si se te pasa el tiempo, puedes abrirlo otra vez desde tu pedido.</span>
                                                                                     </div>
                                                                                     <div class="checkout-account__data" style="max-width: 420px;">
                                                                                         <div class="border rounded-3 p-3 mb-2 text-start bg-white">
@@ -961,7 +1172,7 @@
                                                                                         <div class="border rounded-3 p-3 text-start bg-white">
                                                                                             <span class="checkout-bcp-data__label">Si la tarjeta es rechazada</span>
                                                                                             <strong class="d-block">Tu pedido queda guardado y puedes reintentar</strong>
-                                                                                            <small class="text-muted">También puedes elegir Yape, Plin o BCP desde tu pedido.</small>
+                                                                                            <small class="text-muted">También puedes elegir Yape o Plin desde tu pedido.</small>
                                                                                         </div>
                                                                                         <div class="d-flex align-items-center justify-content-between gap-2 mt-3">
                                                                                             <span class="d-inline-flex align-items-center gap-2">
@@ -978,7 +1189,7 @@
                                                                 @endif
                                                                 @if (! $yapeDisponible && ! $plinDisponible && ! $bcpDisponible && ! $tarjetaDisponible)
                                                                     <div class="alert alert-warning py-2 px-3 mb-0 small" role="status">
-                                                                        Yape, Plin y BCP estarán disponibles cuando la tienda configure los datos de cada método.
+                                                                        Yape y Plin estarán disponibles cuando la tienda configure los datos de cada método.
                                                                     </div>
                                                                 @else
                                                                     <div class="alert alert-info small mb-0 @if ($metodoSolicitado === 'tarjeta') d-none @endif" id="payment-note-manual" role="status">
@@ -991,11 +1202,9 @@
                                                                     @endif
                                                                 @endif
                                                             </div>
+                                                            </div>
 
-                                                            <div class="d-flex justify-content-between gap-2 mt-4">
-                                                                <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-checkout-previous="2">
-                                                                    <i class="bi bi-arrow-left me-1"></i>Volver
-                                                                </button>
+                                                            <div class="mt-4">
                                                                 @php
                                                                     // Sin JavaScript este botón es el único que ve el cliente: su texto
                                                                     // debe prometer exactamente lo que pasará con el método elegido.
@@ -1006,9 +1215,12 @@
                                                                         default => '<i class="bi bi-lock me-1"></i>Elige un método de pago',
                                                                     };
                                                                 @endphp
-                                                                <button type="submit" class="btn btn-primary rounded-pill px-4" id="btn-submit-checkout"
+                                                                <button type="submit" class="btn btn-primary btn-lg rounded-pill py-3 w-100" id="btn-submit-checkout"
                                                                     @disabled(! $yapeDisponible && ! $plinDisponible && ! $bcpDisponible && ! $tarjetaDisponible)>
                                                                     {!! $etiquetaInicial !!}
+                                                                </button>
+                                                                <button type="button" class="btn btn-link text-muted w-100 mt-1" data-checkout-previous="2">
+                                                                    <i class="bi bi-arrow-left me-1"></i>Volver a mis datos
                                                                 </button>
                                                             </div>
 
@@ -1071,9 +1283,9 @@
                         </div>
 
                         <div class="summary-item shipping-item">
-                            <span class="summary-label">Costo de Envío</span>
+                            <span class="summary-label" id="shipping-label">{{ $modalidadActual === 'recojo' ? 'Recojo en tienda' : ($modalidadActual === 'provincia' ? 'Envío a provincias' : 'Costo de Envío') }}</span>
                             <span class="summary-value text-dark fw-medium" id="shipping-display">
-                                {{ $costoEnvioInicial === 0 ? 'Gratis' : \App\Models\Ajuste::formatear_precio($costoEnvioInicial) }}
+                                {{ $modalidadActual === 'provincia' ? 'Se coordina' : ($costoEnvioInicial === 0 ? 'Gratis' : \App\Models\Ajuste::formatear_precio($costoEnvioInicial)) }}
                             </span>
                         </div>
                         <p class="small mb-2 {{ $carritos->isEmpty() ? 'd-none' : ($envioGratis ? 'text-success' : 'text-muted') }}" id="shipping-message" aria-live="polite">
@@ -1085,6 +1297,7 @@
                                 @endif
                             @endif
                         </p>
+                        <p class="small mb-2 text-muted d-none" id="delivery-point-line" aria-live="polite"></p>
                         <div class="summary-total border-top pt-3" aria-live="polite">
                             <span class="summary-label">Total a pagar</span>
                             <span class="summary-value" id="total-display">{{ \App\Models\Ajuste::formatear_precio($subtotal_acumulado + $costoEnvioInicial) }}</span>
@@ -1133,6 +1346,27 @@
                 </div>
             </div>
 
+        </div>
+
+        <!-- Modal: QR agrandado, para escanearlo con el celular desde la pantalla -->
+        <div class="modal fade" id="qrZoomModal" tabindex="-1" aria-labelledby="qrZoomModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content text-start">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold" id="qrZoomModalLabel">Código QR</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <img id="qr-zoom-image" class="qr-zoom__image" src="" alt="">
+                        <p class="small text-muted mt-3 mb-0">Acerca el celular a esta pantalla para escanearlo.</p>
+                    </div>
+                    <div class="modal-footer justify-content-center border-0">
+                        <a id="qr-zoom-open" class="btn btn-sm btn-outline-primary rounded-pill px-3" href="#" target="_blank" rel="noopener">
+                            <i class="bi bi-arrows-fullscreen me-1" aria-hidden="true"></i>Abrir imagen completa
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Modal: Register Express Address -->
@@ -1424,6 +1658,9 @@
                     }
                 }
 
+                const esRecojoEnTienda = () => document.querySelector('input[name="modalidad_entrega"]:checked')?.value === 'recojo';
+                const esEnvioProvincia = () => document.querySelector('input[name="modalidad_entrega"]:checked')?.value === 'provincia';
+
                 function navigateToCheckoutStep(targetStep) {
                     if (!Number.isInteger(targetStep) || targetStep < 1 || targetStep > checkoutPanels.length) return;
                     if (targetStep <= activeCheckoutStep) {
@@ -1447,12 +1684,41 @@
                         }
                     }
 
-                    if (targetStep > 2 && (!addressSelect || !addressSelect.value)) {
-                        showCheckoutStep(2);
+                    if (targetStep > 2 && !esRecojoEnTienda() && (!addressSelect || !addressSelect.value)) {
+                        // El aviso vive en el panel de entrega: si se deja pasar al
+                        // cliente hasta el pago, ya no podría verlo ni corregirlo.
                         noAddressesAlert?.classList.remove('d-none');
                         noAddressesAlert?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         return;
                     }
+
+                    if (targetStep > 2 && esRecojoEnTienda()) {
+                        const avisoPunto = document.getElementById('punto-recojo-alert');
+                        // Solo cuando hay puntos listados: sin ellos el carrito muestra
+                        // la dirección general de Ajustes y no hay nada que elegir.
+                        if (document.querySelectorAll('input[name="punto_recojo_id"]').length
+                            && !document.querySelector('input[name="punto_recojo_id"]:checked')) {
+                            avisoPunto?.classList.remove('d-none');
+                            avisoPunto?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            return;
+                        }
+                    }
+
+                    document.getElementById('punto-recojo-alert')?.classList.add('d-none');
+
+                    if (targetStep > 2 && esEnvioProvincia()) {
+                        const avisoAgencia = document.getElementById('agencia-provincia-alert');
+                        // Se pregunta por el grupo visible, no por los radios: los de
+                        // otras ciudades están desactivados y no aplican a este pedido.
+                        const grupoActivo = document.querySelector('.agencias-provincia-grupo:not(.d-none)');
+                        if (grupoActivo && !grupoActivo.querySelector('input[name="agencia_provincia_id"]:checked')) {
+                            avisoAgencia?.classList.remove('d-none');
+                            avisoAgencia?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            return;
+                        }
+                    }
+
+                    document.getElementById('agencia-provincia-alert')?.classList.add('d-none');
 
                     noAddressesAlert?.classList.add('d-none');
                     showCheckoutStep(targetStep);
@@ -1462,6 +1728,26 @@
                     button.addEventListener('click', () => {
                         navigateToCheckoutStep(Number(button.dataset.checkoutGo));
                     });
+                });
+
+                document.querySelectorAll('input[name="punto_recojo_id"]').forEach(radio => {
+                    radio.addEventListener('change', () => {
+                        document.getElementById('punto-recojo-alert')?.classList.add('d-none');
+                        pintarPuntoElegido('recojo');
+                    });
+                });
+
+                document.querySelectorAll('input[name="agencia_provincia_id"]').forEach(radio => {
+                    radio.addEventListener('change', () => {
+                        document.getElementById('agencia-provincia-alert')?.classList.add('d-none');
+                        pintarPuntoElegido('provincia');
+                    });
+                });
+
+                document.getElementById('direccion_id_select')?.addEventListener('change', () => {
+                    // Cambiar de ciudad cambia las agencias disponibles: si no se
+                    // repinta aquí, el cliente elegiría una agencia de otra provincia.
+                    recalculateCart();
                 });
 
                 document.querySelectorAll('[data-checkout-next]').forEach(button => {
@@ -1549,11 +1835,19 @@
                 const hiddenTotalInput = document.getElementById('hidden-total');
                 const hiddenShippingOption = document.getElementById('hidden-shipping-option');
                 const shippingDisplay = document.getElementById('shipping-display');
+                const shippingLabel = document.getElementById('shipping-label');
                 const shippingMessage = document.getElementById('shipping-message');
                 const totalDisplay = document.getElementById('total-display');
                 const shippingOptionsContainer = document.getElementById('shipping-options-container');
                 const shippingAddressContainer = document.getElementById('shipping-address-container');
+                const provinciaNote = document.getElementById('provincia-note');
+                const recojoCard = document.getElementById('punto-recojo-card');
+                const addressHint = document.getElementById('shipping-address-hint');
                 const addressSelect = document.getElementById('direccion_id_select');
+                const hayDirecciones = {{ $direcciones->isNotEmpty() ? 'true' : 'false' }};
+                const agenciasCard = document.getElementById('agencias-provincia-card');
+                const agenciasGrupos = document.querySelectorAll('.agencias-provincia-grupo');
+                const agenciaRadios = document.querySelectorAll('input[name="agencia_provincia_id"]');
 
                 const standardRadio = document.getElementById('standard_shipping');
                 const expressRadio = document.getElementById('express_shipping');
@@ -1617,6 +1911,24 @@
                     });
                 });
 
+                // El QR se agranda con la imagen que ya está descargada en la
+                // página: no se vuelve a pedir el archivo ni se expone otra ruta.
+                const qrZoomModal = document.getElementById('qrZoomModal');
+                if (qrZoomModal) {
+                    document.querySelectorAll('[data-qr-zoom]').forEach(boton => {
+                        boton.addEventListener('click', () => {
+                            const miniatura = boton.querySelector('img');
+                            if (!miniatura) return;
+
+                            const grande = document.getElementById('qr-zoom-image');
+                            grande.src = miniatura.src;
+                            grande.alt = miniatura.alt;
+                            document.getElementById('qr-zoom-open').href = miniatura.src;
+                            qrZoomModal.querySelector('.modal-title').textContent = 'Código QR de '+boton.dataset.qrZoom;
+                        });
+                    });
+                }
+
                 function updatePaymentOptionAction() {
                     const paymentMethod = document.querySelector('input[name="metodo_pago"]:checked')?.value;
                     if (checkoutQrPreview) {
@@ -1653,7 +1965,59 @@
 
                     btnSubmitCheckout.disabled = paymentOptions.length === 0 || !paymentMethod;
                     btnSubmitCheckout.innerHTML = etiqueta;
-                    btnSubmitCheckout.className = 'btn btn-primary rounded-pill px-4';
+                    btnSubmitCheckout.className = 'btn btn-primary btn-lg rounded-pill py-3 w-100';
+                }
+
+                function pintarAgenciasProvincia(mostrar) {
+                    if (!agenciasCard) return;
+
+                    const provinciaId = mostrar ? (addressSelect?.selectedOptions[0]?.dataset.provinciaId || '') : '';
+                    let hayGrupo = false;
+
+                    agenciasGrupos.forEach(grupo => {
+                        const aplica = mostrar && provinciaId !== '' && grupo.dataset.provinciaId === provinciaId;
+                        grupo.classList.toggle('d-none', !aplica);
+                        hayGrupo = hayGrupo || aplica;
+
+                        // Un radio de otra ciudad, aunque esté oculto, seguiría
+                        // viajando en el pedido: desactivado desaparece del envío.
+                        grupo.querySelectorAll('input[name="agencia_provincia_id"]').forEach(radio => {
+                            radio.disabled = !aplica;
+                            if (!aplica) radio.checked = false;
+                        });
+                    });
+
+                    agenciasCard.classList.toggle('d-none', !hayGrupo);
+                    if (!hayGrupo) {
+                        document.getElementById('agencia-provincia-alert')?.classList.add('d-none');
+                    }
+                    // Sin agencia en esa ciudad el bloque desaparecía en silencio y el
+                    // cliente leía una pantalla rota: aquí dice qué pasa en su lugar.
+                    document.getElementById('agencia-provincia-nota')?.classList.toggle('d-none', !(mostrar && !hayGrupo));
+                }
+
+                function pintarPuntoElegido(deliveryMode) {
+                    const linea = document.getElementById('delivery-point-line');
+                    if (!linea) return;
+
+                    const radio = deliveryMode === 'recojo'
+                        ? document.querySelector('input[name="punto_recojo_id"]:checked')
+                        : (deliveryMode === 'provincia'
+                            ? document.querySelector('input[name="agencia_provincia_id"]:checked')
+                            : null);
+                    const tarjeta = radio ? document.querySelector('label[for="' + radio.id + '"]') : null;
+
+                    if (!tarjeta) {
+                        linea.classList.add('d-none');
+                        linea.textContent = '';
+                        return;
+                    }
+
+                    // El nombre del local va primero y después la dirección: del cartón
+                    // del carrito solo interesa eso, no el horario ni el teléfono.
+                    const partes = [...tarjeta.querySelectorAll('span')].map(span => span.textContent.trim()).filter(Boolean);
+                    linea.textContent = (deliveryMode === 'recojo' ? 'Recojo en ' : 'Agencia ') + partes[0] + (partes[1] ? ' · ' + partes[1] : '');
+                    linea.classList.remove('d-none');
                 }
 
                 function recalculateCart() {
@@ -1670,14 +2034,34 @@
                         }
                     });
 
+                    const muestraDireccion = deliveryMode !== 'recojo';
+                    if (shippingAddressContainer) shippingAddressContainer.style.display = muestraDireccion ? 'block' : 'none';
+                    if (recojoCard) recojoCard.classList.toggle('d-none', deliveryMode !== 'recojo');
+                    if (addressHint) {
+                        addressHint.textContent = deliveryMode === 'provincia'
+                            ? 'Indica la ciudad donde debe llegar tu pedido: lo despachamos por agencia.'
+                            : 'Usamos esta dirección para despachar tu pedido.';
+                    }
+                    // Un <select> oculto y obligatorio invalida el formulario sin
+                    // que el cliente entienda por qué no avanza.
+                    if (addressSelect) addressSelect.required = muestraDireccion && hayDirecciones;
+                    if (agenciasCard) pintarAgenciasProvincia(deliveryMode === 'provincia');
+
                     if (deliveryMode === 'recojo') {
                         if (shippingOptionsContainer) shippingOptionsContainer.style.display = 'none';
-                        if (shippingAddressContainer) shippingAddressContainer.style.display = 'block';
+                        if (provinciaNote) provinciaNote.classList.add('d-none');
                         shippingCost = 0;
                         selectedOption = 'pickup';
+                    } else if (deliveryMode === 'provincia') {
+                        // El despacho por agencia no tiene tarifa fija en la tienda:
+                        // se coordina antes de enviar, así que el carrito no suma nada.
+                        if (shippingOptionsContainer) shippingOptionsContainer.style.display = 'none';
+                        if (provinciaNote) provinciaNote.classList.remove('d-none');
+                        shippingCost = 0;
+                        selectedOption = 'provincia';
                     } else {
                         if (shippingOptionsContainer) shippingOptionsContainer.style.display = 'block';
-                        if (shippingAddressContainer) shippingAddressContainer.style.display = 'block';
+                        if (provinciaNote) provinciaNote.classList.add('d-none');
 
                         if (standardPriceLabel) {
                             standardPriceLabel.textContent = envioEstandarGratis
@@ -1697,14 +2081,29 @@
                     }
 
                     if (shippingDisplay) {
-                        shippingDisplay.innerText = shippingCost > 0 ? formatearPrecioJS(shippingCost) : 'Gratis';
+                        // «Gratis» mentiría en provincias: ahí el costo no es cero,
+                        // es un número que falta coordinar antes de despachar.
+                        shippingDisplay.innerText = deliveryMode === 'provincia'
+                            ? 'Se coordina'
+                            : (shippingCost > 0 ? formatearPrecioJS(shippingCost) : 'Gratis');
                     }
+
+                    if (shippingLabel) {
+                        shippingLabel.textContent = deliveryMode === 'recojo'
+                            ? 'Recojo en tienda'
+                            : (deliveryMode === 'provincia' ? 'Envío a provincias' : 'Costo de Envío');
+                    }
+
+                    pintarPuntoElegido(deliveryMode);
 
                     if (shippingMessage) {
                         shippingMessage.classList.remove('text-success', 'text-muted', 'text-info');
 
                         if (deliveryMode === 'recojo') {
                             shippingMessage.textContent = 'Sin costo de envío al recoger en tienda.';
+                            shippingMessage.classList.add('text-info');
+                        } else if (deliveryMode === 'provincia') {
+                            shippingMessage.textContent = 'Envío a provincias: lo coordinamos antes de despachar.';
                             shippingMessage.classList.add('text-info');
                         } else if (selectedOption === 'express') {
                             shippingMessage.textContent = envioEstandarGratis
@@ -1765,7 +2164,7 @@
                 recalculateCart();
 
                 if (checkoutForm && btnSubmitCheckout) {
-                    checkoutForm.addEventListener('submit', function() {
+                    checkoutForm.addEventListener('submit', function(event) {
                         if (!document.querySelector('input[name="metodo_pago"]:checked')) {
                             return;
                         }

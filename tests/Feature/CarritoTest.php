@@ -100,10 +100,21 @@ class CarritoTest extends TestCase
             ->assertSee('data-checkout-panel="1"', false)
             ->assertSee('data-checkout-panel="2"', false)
             ->assertSee('data-checkout-panel="3"', false)
+            // Sin errores el cliente debe empezar por sus datos: si arranca en un
+            // paso posterior, el indicador le pinta un check verde en
+            // "Identificación" aunque el DNI y el teléfono sigan vacíos.
+            ->assertSee('data-initial-step="1"', false)
             ->assertSee('data-checkout-go="1"', false)
             ->assertSee('data-checkout-go="2"', false)
             ->assertSee('data-checkout-go="3"', false)
             ->assertSee('aria-controls="checkout-panel-3"', false)
+            ->assertSee('Entrega de Productos')
+            ->assertSee('Forma de Pago')
+            ->assertSee('id="modalidad_envio" value="envio" checked', false)
+            ->assertSee('id="modalidad_recojo" value="recojo"', false)
+            ->assertSee('id="modalidad_provincia" value="provincia"', false)
+            ->assertSee('Envío a provincias')
+            ->assertSee('El costo del envío a provincias se coordina contigo por WhatsApp o teléfono antes de despachar', false)
             ->assertSee('navigateToCheckoutStep(targetStep)', false)
             ->assertSee('name="name"', false)
             ->assertSee('name="dni"', false)
@@ -111,20 +122,63 @@ class CarritoTest extends TestCase
             ->assertSee('name="privacy_consent"', false)
             ->assertSee(route('web.privacidad'), false)
             ->assertSee('id="checkout-customer-email"', false)
-            ->assertSee('La dirección queda asociada a tu pedido, incluso si eliges recojo en tienda.')
+            ->assertSee('Usamos esta dirección para despachar tu pedido.')
+            // Cada modalidad abre su propio conjunto de campos: la nota de
+            // provincias y el punto de recojo existen, ambos ocultos por defecto.
+            ->assertSee('id="provincia-note"', false)
+            ->assertSee('id="punto-recojo-card"', false)
+            ->assertSee('Punto de recojo')
+            ->assertSee('const muestraDireccion = deliveryMode !== \'recojo\';', false)
+            ->assertSee('if (addressSelect) addressSelect.required = muestraDireccion && hayDirecciones;', false)
+            ->assertSee('!esRecojoEnTienda() && (!addressSelect || !addressSelect.value)', false)
             ->assertSee('data-cart-summary-quantity="'.$this->getCartItemId($usuario, $producto).'"', false)
-            ->assertSee('Yape, Plin y BCP estarán disponibles')
+            ->assertSee('Yape y Plin estarán disponibles cuando la tienda configure los datos de cada método.')
+            // La transferencia BCP salió del carrito: aunque la cuenta esté en
+            // Ajustes, su tarjeta no debe llegar al HTML.
+            ->assertDontSee('id="pago_bcp"', false)
             ->assertSee('Tu pedido tiene envío estándar gratis.')
             ->assertSee('id="hidden-shipping-option" value="free"', false)
             ->assertSee('id="standard_shipping" value="standard" checked', false)
             ->assertSee('id="express_shipping" value="express"', false)
             ->assertDontSee('id="free_shipping"', false)
-            ->assertSee('Método de pago')
+            ->assertSee('Forma de Pago')
             ->assertSee('Compra segura')
             ->assertSee('Tu información está protegida y solo se usa para procesar tu pedido.')
             ->assertSee('class="summary-item d-none" id="subtotal-original-container"', false);
 
         $this->assertSame(1, substr_count($response->getContent(), 'id="checkout-form"'));
+
+        // Cada paso es su propio <section>: si un contenedor queda sin cerrar, el
+        // navegador lo reacomoda solo y el desalineado lo ve el cliente, no una prueba.
+        $html = $response->getContent();
+        $titulos = [
+            1 => 'Tus datos personales',
+            2 => 'Entrega de Productos',
+            3 => 'Forma de Pago',
+        ];
+
+        foreach ($titulos as $paso => $titulo) {
+            $inicio = mb_strpos($html, 'id="checkout-panel-'.$paso.'"');
+            $this->assertNotFalse($inicio, 'El carrito no renderiza el paso '.$paso.'.');
+
+            $fin = mb_strpos($html, '</section>', $inicio);
+            $this->assertNotFalse($fin, 'El paso '.$paso.' no cierra antes del siguiente.');
+
+            $panel = mb_substr($html, $inicio, $fin - $inicio);
+            $this->assertStringContainsString($titulo, $panel);
+
+            foreach ($titulos as $otroPaso => $otroTitulo) {
+                if ($otroPaso !== $paso) {
+                    $this->assertStringNotContainsString($otroTitulo, $panel);
+                }
+            }
+
+            $this->assertSame(
+                substr_count($panel, '<div'),
+                substr_count($panel, '</div>'),
+                'El paso '.$paso.' deja contenedores <div> sin cerrar.'
+            );
+        }
     }
 
     public function test_the_shipping_amounts_come_from_configuration_and_express_stays_selectable(): void
@@ -242,7 +296,7 @@ class CarritoTest extends TestCase
             ->assertSee('Elige un método de pago');
     }
 
-    public function test_checkout_offers_bcp_transfer_when_only_the_web_bcp_account_is_configured(): void
+    public function test_el_carrito_ya_no_ofrece_bcp_aunque_la_cuenta_este_configurada(): void
     {
         $usuario = User::factory()->create();
         $usuario->forceFill(['galy_user_id' => $usuario->id])->save();
@@ -287,75 +341,20 @@ class CarritoTest extends TestCase
 
         $response = $this->actingAs($usuario)->get(route('web.carrito.index'));
 
-        $response->assertOk()
-            ->assertSee('name="metodo_pago" id="pago_bcp" value="bcp"', false)
-            ->assertSee('data-checkout-qr="bcp"', false)
-            ->assertSee('00110002000300040055')
-            ->assertSee('191-876543210-0-88')
-            ->assertSee('Titular BCP')
-            ->assertDontSee('Titular BCP exclusivo app')
-            ->assertSee('data-copy-payment-number="00110002000300040055"', false)
-            ->assertSee('Total exacto')
-            ->assertDontSee('Yape, Plin y BCP estarán disponibles')
-            ->assertSee('<button type="submit" class="btn btn-primary rounded-pill px-4" id="btn-submit-checkout"', false)
-            ->assertDontSee('<button type="submit" class="btn btn-primary rounded-pill px-4" id="btn-submit-checkout" disabled', false)
-            ->assertSee('id="payment-note-manual"', false)
-            ->assertDontSee('id="payment-note-tarjeta"', false)
-            ->assertSee('Elige un método de pago');
-    }
-
-    public function test_checkout_hides_bcp_while_the_saved_account_is_only_a_placeholder(): void
-    {
-        $usuario = User::factory()->create();
-        $usuario->forceFill(['galy_user_id' => $usuario->id])->save();
-        $producto = $this->createProductWithSharedInventory(5);
-        $producto->forceFill([
-            'precio_venta' => 550,
-            'precio_oferta' => null,
-            'en_oferta' => false,
-        ])->save();
-
-        Schema::create('producto_imagenes', function (Blueprint $table): void {
-            $table->id();
-            $table->unsignedBigInteger('producto_id');
-            $table->string('imagen')->nullable();
-            $table->timestamps();
-        });
-
-        DB::table('ajustes')->insert([
-            'nombre' => 'GALY',
-            'descripcion' => 'Tienda',
-            'sucursal' => 'Principal',
-            'direccion' => 'Dirección',
-            'telefono' => '999999999',
-            'logo' => 'logo.png',
-            'imagen_login' => 'login.png',
-            'email' => 'tienda@example.com',
-            'divisa' => 'PEN',
-            'web_bcp_cci' => '00000000000000000000',
-            'web_bcp_cuenta' => '191-00000000-0-00',
-            'web_bcp_titular' => 'CUENTA DE PRUEBA - NO TRANSFERIR',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        DB::table('carrito')->insert([
-            'usuario_id' => $usuario->galy_user_id,
-            'producto_id' => $producto->id,
-            'cantidad' => 1,
-        ]);
-
-        $response = $this->actingAs($usuario)->get(route('web.carrito.index'));
-
+        // Retirada por decisión del dueño (2026-10-21): ni el botón ni el CCI,
+        // aunque Ajustes tenga la cuenta completa y válida.
         $response->assertOk()
             ->assertDontSee('id="pago_bcp"', false)
             ->assertDontSee('data-checkout-qr="bcp"', false)
-            ->assertDontSee('00000000000000000000')
-            ->assertDontSee('191-00000000-0-00')
-            ->assertDontSee('CUENTA DE PRUEBA - NO TRANSFERIR');
+            ->assertDontSee('00110002000300040055')
+            ->assertDontSee('191-876543210-0-88')
+            ->assertDontSee('Titular BCP')
+            ->assertDontSee('Transferencia BCP')
+            // Sin Yape ni Plin configurados no queda ningún método manual.
+            ->assertSee('Yape y Plin estarán disponibles cuando la tienda configure los datos de cada método.');
     }
 
-    public function test_checkout_lists_payment_methods_in_yape_bcp_plin_order(): void
+    public function test_checkout_lists_payment_methods_in_yape_plin_order(): void
     {
         $usuario = User::factory()->create();
         $usuario->forceFill(['galy_user_id' => $usuario->id])->save();
@@ -403,21 +402,36 @@ class CarritoTest extends TestCase
 
         $html = $this->actingAs($usuario)->get(route('web.carrito.index'))->getContent();
 
+        // El CCI está cargado en Ajustes a propósito: retirar BCP del carrito es
+        // una decisión de vitrina, no de configuración, así que el HTML no debe
+        // mostrarlo ni desordenar a los métodos que sí quedan.
+        $this->assertFalse(strpos($html, 'id="pago_bcp"'), 'El checkout ya no debe ofrecer BCP.');
+        $this->assertFalse(strpos($html, '00110002000300040055'), 'El CCI guardado no debe publicarse.');
+
         $posiciones = [
             'Yape' => strpos($html, 'id="pago_yape"'),
-            'BCP' => strpos($html, 'id="pago_bcp"'),
             'Plin' => strpos($html, 'id="pago_plin"'),
         ];
 
         $this->assertGreaterThan(
             $posiciones['Yape'],
-            $posiciones['BCP'],
-            'BCP debe aparecer despues de Yape en el checkout'
-        );
-        $this->assertGreaterThan(
-            $posiciones['BCP'],
             $posiciones['Plin'],
             'Plin debe aparecer ultimo en el checkout'
+        );
+
+        // Los QR suben como foto de pantalla: sin agrandarlos el cliente no puede
+        // escanearlos, así que el zoom forma parte del pago y no del adorno.
+        foreach (['Yape', 'Plin'] as $metodo) {
+            $this->assertMatchesRegularExpression(
+                '/<button[^>]+data-qr-zoom="'.$metodo.'"/',
+                $html,
+                'El QR de '.$metodo.' debe ser un botón que abra el modal.'
+            );
+        }
+
+        $this->assertTrue(
+            str_contains($html, 'id="qrZoomModal"'),
+            'Sin el modal de agrado, el QR queda ilegible en el celular.'
         );
     }
 
@@ -530,5 +544,92 @@ class CarritoTest extends TestCase
             ])->assertUnprocessable();
 
         $this->assertDatabaseCount('carrito', 0);
+    }
+
+    public function test_envio_a_provincias_is_accepted_but_an_unknown_modality_is_not(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->forceFill(['galy_user_id' => $usuario->id])->save();
+
+        $datos = [
+            'name' => $usuario->name,
+            'dni' => '12345678',
+            'telefono' => '987654321',
+            'privacy_consent' => '1',
+            'direccion_id' => 1,
+            'metodo_pago' => 'yape',
+        ];
+
+        // La validación corre antes que cualquier otro guard, así que un error de
+        // modalidad aparecería aunque el carrito esté vacío.
+        $this->actingAs($usuario)
+            ->post(route('web.pedidos.pago_manual'), $datos + [
+                'modalidad_entrega' => 'provincia',
+                'shipping_option' => 'provincia',
+            ])
+            ->assertSessionDoesntHaveErrors(['modalidad_entrega', 'shipping_option']);
+
+        $this->actingAs($usuario)
+            ->post(route('web.pedidos.pago_manual'), $datos + [
+                'modalidad_entrega' => 'helicoptero',
+            ])
+            ->assertSessionHasErrors('modalidad_entrega');
+    }
+
+    /**
+     * Elegir recojo y recibir un error de validación no puede devolver al cliente
+     * al formulario con la modalidad reiniciada a «envío» y la dirección otra vez
+     * en pantalla.
+     */
+    public function test_la_modalidad_elegida_vuelve_marcada_tras_un_error_de_validacion(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->forceFill(['galy_user_id' => $usuario->id])->save();
+        $producto = $this->createProductWithSharedInventory(5);
+        $producto->forceFill([
+            'precio_venta' => 550,
+            'precio_oferta' => null,
+            'en_oferta' => false,
+        ])->save();
+
+        DB::table('carrito')->insert([
+            'usuario_id' => $usuario->galy_user_id,
+            'producto_id' => $producto->id,
+            'cantidad' => 1,
+        ]);
+
+        Schema::create('producto_imagenes', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('producto_id');
+            $table->string('imagen')->nullable();
+            $table->timestamps();
+        });
+
+        $this->actingAs($usuario)
+            ->from(route('web.carrito.index'))
+            ->post(route('web.pedidos.pago_manual'), [
+                'name' => $usuario->name,
+                'dni' => '1234',
+                'telefono' => '987654321',
+                'privacy_consent' => '1',
+                'metodo_pago' => 'yape',
+                'modalidad_entrega' => 'recojo',
+                'shipping_option' => 'pickup',
+            ])
+            ->assertSessionHasErrors('dni');
+
+        $respuesta = $this->actingAs($usuario)->get(route('web.carrito.index'))->assertOk();
+
+        foreach (['id="modalidad_recojo" value="recojo" checked', 'id="shipping-address-container" style="display: none"', 'id="shipping-options-container" style="display: none"', 'id="punto-recojo-card"'] as $needle) {
+            $this->assertTrue(str_contains($respuesta->getContent(), $needle), 'Falta en el HTML: '.$needle);
+        }
+    }
+
+    public function test_cada_modalidad_de_entrega_tiene_su_propio_texto_en_el_pedido(): void
+    {
+        $this->assertSame('Envío a domicilio', (new \App\Models\Orden(['modalidad_entrega' => 'envio']))->getModalidadTexto());
+        $this->assertSame('Recojo en tienda', (new \App\Models\Orden(['modalidad_entrega' => 'recojo']))->getModalidadTexto());
+        $this->assertSame('Envío a provincias', (new \App\Models\Orden(['modalidad_entrega' => 'provincia']))->getModalidadTexto());
+        $this->assertSame('Envío a domicilio', (new \App\Models\Orden(['modalidad_entrega' => null]))->getModalidadTexto());
     }
 }

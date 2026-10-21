@@ -818,6 +818,7 @@
                             </div>
                         </li>
 
+                        <li><a href="{{ route('web.asesores') }}" class="{{ Route::is('web.asesores') ? 'active' : '' }}"><i class="bi bi-people me-1" aria-hidden="true"></i>Asesores</a></li>
                         <li><a href="{{ route('web.nosotros') }}" class="{{ Route::is('web.nosotros') ? 'active' : '' }}">Nosotros</a></li>
                         <li><a href="{{ route('web.contacto') }}#servicio-tecnico"><i class="bi bi-tools me-1" aria-hidden="true"></i>Servicio técnico</a></li>
                         <li><a href="{{ route('web.contacto') }}" class="{{ Route::is('web.contacto') ? 'active' : '' }}">Contacto</a></li>

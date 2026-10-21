@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ajuste;
+use App\Models\Asesor;
 use App\Models\Banner;
 use App\Models\Carrusel;
 use App\Models\Categoria;
@@ -266,6 +267,14 @@ class WebController extends Controller
         }
 
         return view('web.nosotros', compact('ajuste', 'nosotros'));
+    }
+
+    public function asesores()
+    {
+        $ajuste = Ajuste::first();
+        $asesores = Asesor::activos()->get();
+
+        return view('web.asesores', compact('ajuste', 'asesores'));
     }
 
     public function contacto()

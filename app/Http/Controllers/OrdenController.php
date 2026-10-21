@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 class OrdenController extends Controller
@@ -267,16 +268,55 @@ class OrdenController extends Controller
      */
     public function crearPedidoPagoManual(Request $request, ReservaProductoService $reservations, MercadoPagoService $mercadoPago)
     {
-        $validated = $request->validate([
+        // Solo se exige un punto cuando la tienda publicó al menos uno: mientras
+        // no existan, el carrito muestra la dirección general de Ajustes y el
+        // cliente no tiene nada que elegir. `deTienda()` deja fuera las agencias
+        // de provincias, que son otra decisión y otra modalidad.
+        $tablaPuntos = Schema::hasTable('puntos_recojo');
+        $hayPuntosRecojo = $tablaPuntos && \App\Models\PuntoRecojo::activos()->deTienda()->exists();
+
+        // Las agencias dependen de la ciudad del pedido: una agencia de otra
+        // provincia no sirve, así que se filtra por la provincia de la dirección
+        // que el cliente acaba de elegir.
+        $provinciaDestino = $tablaPuntos && $request->input('modalidad_entrega') === 'provincia' && $request->input('direccion_id')
+            ? \App\Models\Direccion::where('usuario_id', auth()->id())
+                ->whereKey($request->input('direccion_id'))
+                ->value('provincia_id')
+            : null;
+        $hayAgenciasEnDestino = $provinciaDestino
+            && \App\Models\PuntoRecojo::activos()->where('provincia_id', $provinciaDestino)->exists();
+
+        $reglas = [
             'name' => 'required|string|max:255',
             'dni' => ['required', 'regex:/^[0-9]{8}$/'],
             'telefono' => ['required', 'regex:/^\+?[0-9\s().-]{7,20}$/'],
             'privacy_consent' => 'required|accepted',
-            'direccion_id' => 'required|integer',
-            'shipping_option' => 'nullable|string|in:standard,express,free,pickup',
-            'modalidad_entrega' => 'required|string|in:envio,recojo',
-            'metodo_pago' => 'required|string|in:yape,plin,bcp,tarjeta',
-        ], [
+            'direccion_id' => 'required_unless:modalidad_entrega,recojo|nullable|integer',
+            'shipping_option' => 'nullable|string|in:standard,express,free,pickup,provincia',
+            'modalidad_entrega' => 'required|string|in:envio,recojo,provincia',
+            // `bcp` salió de la lista: la tienda retiró la transferencia del
+            // carrito, y aceptar el valor por POST crearía un pedido cuyo destino
+            // ya no se le muestra al cliente.
+            'metodo_pago' => 'required|string|in:yape,plin,tarjeta',
+        ];
+
+        if ($hayPuntosRecojo) {
+            $reglas['punto_recojo_id'] = [
+                'required_if:modalidad_entrega,recojo', 'nullable', 'integer',
+                \Illuminate\Validation\Rule::exists('puntos_recojo', 'id')
+                    ->where('activo', true)->whereNull('provincia_id'),
+            ];
+        }
+
+        if ($hayAgenciasEnDestino) {
+            $reglas['agencia_provincia_id'] = [
+                'required', 'integer',
+                \Illuminate\Validation\Rule::exists('puntos_recojo', 'id')
+                    ->where('activo', true)->where('provincia_id', $provinciaDestino),
+            ];
+        }
+
+        $validated = $request->validate($reglas, [
             'name.required' => 'Ingresa tu nombre completo antes de continuar.',
             'dni.required' => 'Ingresa tu DNI para registrar el pedido.',
             'dni.regex' => 'El DNI debe contener exactamente 8 números.',
@@ -285,6 +325,10 @@ class OrdenController extends Controller
             'privacy_consent.accepted' => 'Debes leer y aceptar la Política de Privacidad para continuar.',
             'direccion_id.required' => 'Registra y selecciona una dirección antes de continuar.',
             'direccion_id.integer' => 'Selecciona una dirección válida.',
+            'punto_recojo_id.required_if' => 'Elige en qué punto quieres recoger tu pedido.',
+            'punto_recojo_id.exists' => 'Ese punto de recojo ya no está disponible. Elige otro.',
+            'agencia_provincia_id.required' => 'Elige en qué agencia de tu ciudad quieres recoger tu pedido.',
+            'agencia_provincia_id.exists' => 'Esa agencia no atiende en la ciudad de tu dirección. Elige otra.',
         ]);
 
         if (! auth()->user()->google_id || ! auth()->user()->email_verified_at) {
@@ -305,7 +349,7 @@ class OrdenController extends Controller
         if ($metodo === 'tarjeta') {
             if (! $ajuste?->web_mercadopago_activa || ! $mercadoPago->sePuedeOfrecer()) {
                 return redirect()->route('web.carrito.index')
-                    ->with('mensaje', 'El pago con tarjeta no está disponible por ahora. Elige Yape, Plin o transferencia BCP.')
+                    ->with('mensaje', 'El pago con tarjeta no está disponible por ahora. Elige Yape o Plin.')
                     ->with('icono', 'warning');
             }
         } else {
@@ -319,18 +363,35 @@ class OrdenController extends Controller
 
                 return redirect()->route('web.carrito.index')
                     ->with('mensaje', 'Elige otro método de pago por ahora: la tienda aún no puede recibir transferencias por '
-                        .($metodo === 'bcp' ? 'BCP' : ucfirst($metodo)).'.')
+                        .ucfirst($metodo).'.')
                     ->with('icono', 'warning');
             }
         }
 
         $modalidad = $validated['modalidad_entrega'];
-        $direccion = \App\Models\Direccion::where('usuario_id', auth()->id())
-            ->findOrFail($validated['direccion_id']);
-        $direccionId = $direccion->id;
-        $direccionTexto = $modalidad === 'envio'
-            ? $direccion->getFormattedAddress()
-            : 'Recojo en Tienda';
+        // En recojo el cliente no necesita dirección: el pedido se retira en la
+        // tienda, así que `direccion_id` llega vacío a propósito.
+        $direccion = $modalidad === 'recojo'
+            ? null
+            : \App\Models\Direccion::where('usuario_id', auth()->id())
+                ->whereKey($validated['direccion_id'] ?? null)
+                ->firstOrFail();
+        $direccionId = $direccion?->id;
+        $punto = $modalidad === 'recojo' && $hayPuntosRecojo
+            ? \App\Models\PuntoRecojo::activos()->deTienda()->findOrFail($validated['punto_recojo_id'])
+            : null;
+        $agencia = $hayAgenciasEnDestino
+            ? \App\Models\PuntoRecojo::activos()->where('provincia_id', $provinciaDestino)
+                ->findOrFail($validated['agencia_provincia_id'])
+            : null;
+        $direccionTexto = match (true) {
+            // La agencia reemplaza el texto del destino: la calle del cliente ya
+            // queda ligada por `direccion_id`, y aquí importa dónde está la caja.
+            $agencia !== null => $agencia->texto_para_pedido,
+            $punto !== null => $punto->texto_para_pedido,
+            $modalidad === 'recojo' => 'Recojo en Tienda',
+            default => $direccion->getFormattedAddress(),
+        };
 
         $carritos = \App\Models\Carrito::where('usuario_id', $usuarioId)->with('producto')->get();
         if ($carritos->isEmpty()) {
@@ -371,6 +432,8 @@ class OrdenController extends Controller
 
         $reglasEnvio = (array) config('tienda.envio');
         $costoEnvio = match (true) {
+            // Recojo no paga envío; provincias tampoco se cobra aquí: su tarifa
+            // no es fija y se coordina con el cliente antes de despachar.
             $modalidad !== 'envio' => 0.0,
             ($validated['shipping_option'] ?? 'standard') === 'express' => (float) $reglasEnvio['costo_express'],
             $subtotal < (float) $reglasEnvio['umbral_gratis'] => (float) $reglasEnvio['costo_estandar'],

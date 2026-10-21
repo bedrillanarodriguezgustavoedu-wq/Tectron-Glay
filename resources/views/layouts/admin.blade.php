@@ -170,6 +170,33 @@
                             </li>
                         @endcan
 
+                        @can('Listado de Cupones')
+                            <li class="sidebar-item {{ request()->is('admin/cupon*') ? 'active' : '' }}">
+                                <a href="{{ url('/admin/cupones') }}" class='sidebar-link'>
+                                    <i class="bi bi-ticket-perforated"></i>
+                                    <span>Cupones</span>
+                                </a>
+                            </li>
+                        @endcan
+
+                        @can('Listado de Asesores')
+                            <li class="sidebar-item {{ request()->is('admin/asesor*') ? 'active' : '' }}">
+                                <a href="{{ url('/admin/asesores') }}" class='sidebar-link'>
+                                    <i class="bi bi-people-fill"></i>
+                                    <span>Asesores</span>
+                                </a>
+                            </li>
+                        @endcan
+
+                        @can('Listado de Punto de Recojo')
+                            <li class="sidebar-item {{ request()->is('admin/punto*') ? 'active' : '' }}">
+                                <a href="{{ url('/admin/puntos-recojo') }}" class='sidebar-link'>
+                                    <i class="bi bi-shop"></i>
+                                    <span>Puntos de recojo</span>
+                                </a>
+                            </li>
+                        @endcan
+
                         @can('Listado de Banners')
                             <li class="sidebar-item {{ request()->is('admin/banner*') ? 'active' : '' }}  ">
                                 <a href="{{ url('/admin/banners') }}" class='sidebar-link'>

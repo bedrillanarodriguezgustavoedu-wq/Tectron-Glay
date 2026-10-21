@@ -517,6 +517,94 @@ class AdminPaymentRegisterTest extends TestCase
             ->assertSee('Comprobante de pago');
     }
 
+    public function test_la_confirmacion_deja_agrandar_el_qr_y_copiar_el_importe_exacto(): void
+    {
+        \Illuminate\Support\Facades\DB::table('ajustes')->insert([
+            'nombre' => 'GALY',
+            'descripcion' => 'Tienda',
+            'sucursal' => 'Principal',
+            'direccion' => 'Dirección',
+            'telefono' => '999999999',
+            'logo' => 'logo.png',
+            'imagen_login' => 'login.png',
+            'email' => 'tienda@example.com',
+            'divisa' => 'PEN',
+            'web_yape_numero' => '987654321',
+            'web_yape_titular' => 'Titular Yape',
+            'web_yape_qr' => 'pagos/qr/web/yape.png',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $pedidoId = $this->createPendingManualPayment('pendiente', false);
+        \Illuminate\Support\Facades\DB::table('pedidos')->where('id', $pedidoId)->update([
+            'direccion' => 'Alias: casa | Dirección: jr cristo rey 123 | Ref: frente al parque | Provincia: N/A | País: Perú',
+        ]);
+
+        $usuarioGalyId = \Illuminate\Support\Facades\DB::connection('galy')
+            ->table('usuarios')
+            ->where('email', 'cliente-pago@example.test')
+            ->value('id');
+        $cliente = User::factory()->create(['galy_user_id' => $usuarioGalyId]);
+
+        $this->actingAs($cliente)
+            ->get(route('web.pedidos.confirmacion', $pedidoId))
+            ->assertOk()
+            // El QR sube como foto de pantalla: sin agrandarlo no se puede escanear.
+            ->assertSee('data-qr-zoom="Yape"', false)
+            ->assertSee('id="qrZoomModal"', false)
+            ->assertSee('¿No lo puedes leer? Tócalo para agrandarlo.')
+            // En la app del banco el importe se teclea sin miles ni símbolo.
+            ->assertSee('Copiar importe')
+            ->assertSee('data-copy-payment-number="129.90"', false)
+            ->assertSee('data-copy-payment-number="987654321"', false)
+            // La dirección legible: sin el «Alias» inventario ni el «Provincia: N/A».
+            ->assertSee('jr cristo rey 123')
+            ->assertSee('frente al parque')
+            ->assertSee('Perú')
+            ->assertDontSee('Alias: casa')
+            ->assertDontSee('Provincia: N/A')
+            ->assertDontSee('Dirección: jr cristo rey 123');
+    }
+
+    public function test_el_titulo_de_la_direccion_sigue_lo_que_realmente_guarda_el_pedido(): void
+    {
+        $pedidoId = $this->createPendingManualPayment('pendiente', false);
+        $usuarioGalyId = \Illuminate\Support\Facades\DB::connection('galy')
+            ->table('usuarios')
+            ->where('email', 'cliente-pago@example.test')
+            ->value('id');
+        $cliente = User::factory()->create(['galy_user_id' => $usuarioGalyId]);
+
+        // Un «envío a provincia» sin agencia guarda la casa del cliente: si el
+        // título se elige por la modalidad, la pantalla manda a retirar una caja
+        // a una agencia que nunca existió.
+        $titulos = [
+            'Recojo en Tienda GALY – Av. Balta 123' => 'Punto de recojo',
+            'Agencia GALY Huamanga (Huamanga, Ayacucho) – jirón Lima 45' => 'Agencia de destino',
+            'Alias: casa | Dirección: jr cristo rey 123' => 'Dirección de envío',
+        ];
+
+        foreach ($titulos as $texto => $tituloEsperado) {
+            \Illuminate\Support\Facades\DB::table('pedidos')->where('id', $pedidoId)->update([
+                'direccion' => $texto,
+            ]);
+
+            $html = $this->actingAs($cliente)
+                ->get(route('web.pedidos.confirmacion', $pedidoId))
+                ->assertOk()
+                ->getContent();
+
+            $this->assertStringContainsString($tituloEsperado, $html, 'El pedido decía «'.$texto.'».');
+
+            foreach ($titulos as $otroTitulo) {
+                if ($otroTitulo !== $tituloEsperado) {
+                    $this->assertStringNotContainsString($otroTitulo, $html, 'El pedido decía «'.$texto.'».');
+                }
+            }
+        }
+    }
+
     public function test_customer_can_upload_and_only_view_their_private_payment_receipt(): void
     {
         $pedidoId = $this->createPendingManualPayment('pendiente', false);

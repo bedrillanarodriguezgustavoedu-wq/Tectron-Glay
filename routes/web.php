@@ -3,12 +3,14 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AjusteController;
 use App\Http\Controllers\AparienciaController;
+use App\Http\Controllers\AsesorController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\BannerController;
 use App\Http\Controllers\CarritoController;
 use App\Http\Controllers\CarruselController;
 use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\ContactoController;
+use App\Http\Controllers\CuponController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartamentoController;
 use App\Http\Controllers\DireccionController;
@@ -24,6 +26,7 @@ use App\Http\Controllers\OrdenController;
 use App\Http\Controllers\PaisController;
 use App\Http\Controllers\ProductoController;
 use App\Http\Controllers\ProductoFavoritoController;
+use App\Http\Controllers\PuntoRecojoController;
 use App\Http\Controllers\ProvinciaController;
 use App\Http\Controllers\ReservaProductoController;
 use App\Http\Controllers\ReviewController;
@@ -313,6 +316,75 @@ Route::post('/admin/marca/{id}/toggle-status', [MarcaController::class, 'toggleS
     ->name('admin.marcas.toggle')
     ->middleware(['auth', 'can:Editar Marca']);
 
+// Cupones
+Route::get('/admin/cupones', [CuponController::class, 'index'])
+    ->name('admin.cupones.index')
+    ->middleware(['auth', 'can:Listado de Cupones']);
+Route::get('/admin/cupones/create', [CuponController::class, 'create'])
+    ->name('admin.cupones.create')
+    ->middleware(['auth', 'can:Crear Cupon']);
+Route::post('/admin/cupones/create', [CuponController::class, 'store'])
+    ->name('admin.cupones.store')
+    ->middleware(['auth', 'can:Guardar Cupon']);
+Route::get('/admin/cupon/{id}/edit', [CuponController::class, 'edit'])
+    ->name('admin.cupones.edit')
+    ->middleware(['auth', 'can:Editar Cupon']);
+Route::put('/admin/cupon/{id}', [CuponController::class, 'update'])
+    ->name('admin.cupones.update')
+    ->middleware(['auth', 'can:Actualizar Cupon']);
+Route::delete('/admin/cupon/{id}', [CuponController::class, 'destroy'])
+    ->name('admin.cupones.destroy')
+    ->middleware(['auth', 'can:Eliminar Cupon']);
+Route::post('/admin/cupon/{id}/toggle-status', [CuponController::class, 'toggleStatus'])
+    ->name('admin.cupones.toggle')
+    ->middleware(['auth', 'can:Editar Cupon']);
+
+// Asesores comerciales
+Route::get('/admin/asesores', [AsesorController::class, 'index'])
+    ->name('admin.asesores.index')
+    ->middleware(['auth', 'can:Listado de Asesores']);
+Route::get('/admin/asesores/create', [AsesorController::class, 'create'])
+    ->name('admin.asesores.create')
+    ->middleware(['auth', 'can:Crear Asesor']);
+Route::post('/admin/asesores/create', [AsesorController::class, 'store'])
+    ->name('admin.asesores.store')
+    ->middleware(['auth', 'can:Guardar Asesor']);
+Route::get('/admin/asesor/{id}/edit', [AsesorController::class, 'edit'])
+    ->name('admin.asesores.edit')
+    ->middleware(['auth', 'can:Editar Asesor']);
+Route::put('/admin/asesor/{id}', [AsesorController::class, 'update'])
+    ->name('admin.asesores.update')
+    ->middleware(['auth', 'can:Actualizar Asesor']);
+Route::delete('/admin/asesor/{id}', [AsesorController::class, 'destroy'])
+    ->name('admin.asesores.destroy')
+    ->middleware(['auth', 'can:Eliminar Asesor']);
+Route::post('/admin/asesor/{id}/toggle-status', [AsesorController::class, 'toggleStatus'])
+    ->name('admin.asesores.toggle')
+    ->middleware(['auth', 'can:Editar Asesor']);
+
+// Puntos de recojo
+Route::get('/admin/puntos-recojo', [PuntoRecojoController::class, 'index'])
+    ->name('admin.puntos_recojo.index')
+    ->middleware(['auth', 'can:Listado de Punto de Recojo']);
+Route::get('/admin/puntos-recojo/create', [PuntoRecojoController::class, 'create'])
+    ->name('admin.puntos_recojo.create')
+    ->middleware(['auth', 'can:Crear Punto de Recojo']);
+Route::post('/admin/puntos-recojo/create', [PuntoRecojoController::class, 'store'])
+    ->name('admin.puntos_recojo.store')
+    ->middleware(['auth', 'can:Guardar Punto de Recojo']);
+Route::get('/admin/puntos-recojo/{id}/edit', [PuntoRecojoController::class, 'edit'])
+    ->name('admin.puntos_recojo.edit')
+    ->middleware(['auth', 'can:Editar Punto de Recojo']);
+Route::put('/admin/puntos-recojo/{id}', [PuntoRecojoController::class, 'update'])
+    ->name('admin.puntos_recojo.update')
+    ->middleware(['auth', 'can:Actualizar Punto de Recojo']);
+Route::delete('/admin/puntos-recojo/{id}', [PuntoRecojoController::class, 'destroy'])
+    ->name('admin.puntos_recojo.destroy')
+    ->middleware(['auth', 'can:Eliminar Punto de Recojo']);
+Route::post('/admin/puntos-recojo/{id}/toggle-status', [PuntoRecojoController::class, 'toggleStatus'])
+    ->name('admin.puntos_recojo.toggle')
+    ->middleware(['auth', 'can:Editar Punto de Recojo']);
+
 // Ofertas
 Route::get('/admin/ofertas', [OfertaController::class, 'index'])
     ->name('admin.ofertas.index')
@@ -462,6 +534,7 @@ Route::get('/reservas', [ReservaProductoController::class, 'mine'])->name('web.r
 Route::post('/reservas', [ReservaProductoController::class, 'reserve'])->name('web.reservas.store')->middleware('auth');
 Route::delete('/reservas/{id}', [ReservaProductoController::class, 'cancelMine'])->name('web.reservas.cancel')->middleware('auth');
 Route::get('/nosotros', [WebController::class, 'nosotros'])->name('web.nosotros');
+Route::get('/asesores', [WebController::class, 'asesores'])->name('web.asesores');
 Route::get('/contacto', [WebController::class, 'contacto'])->name('web.contacto');
 Route::post('/contacto', [WebController::class, 'guardar_mensaje'])->name('web.contacto.store');
 Route::get('/api/buscar-sugerencias', [WebController::class, 'buscar_sugerencias'])->name('api.buscar_sugerencias');

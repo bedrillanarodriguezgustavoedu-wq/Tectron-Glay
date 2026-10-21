@@ -7,9 +7,11 @@ use App\Models\Carrito;
 use App\Models\Direccion;
 use App\Models\Pais;
 use App\Models\Producto;
+use App\Models\PuntoRecojo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class CarritoController extends Controller
@@ -36,7 +38,18 @@ class CarritoController extends Controller
             ->with(['pais', 'departamento', 'provincia'])
             ->get();
 
-        return view('web.carritos', compact('carritos', 'ajuste', 'paises', 'direcciones'));
+        // Blindado porque el carrito es la página más cara del flujo: si la
+        // migración de puntos de recojo aún no está aplicada, el cliente sigue
+        // pudiendo comprar con la dirección general de Ajustes.
+        $puntosRecojo = Schema::hasTable('puntos_recojo')
+            ? PuntoRecojo::activos()->deTienda()->get()
+            : collect();
+
+        $agencias = Schema::hasTable('puntos_recojo')
+            ? PuntoRecojo::agenciasPorProvincia()
+            : collect();
+
+        return view('web.carritos', compact('carritos', 'ajuste', 'paises', 'direcciones', 'puntosRecojo', 'agencias'));
     }
 
     /**

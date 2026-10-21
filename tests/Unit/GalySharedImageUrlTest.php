@@ -8,6 +8,28 @@ use Tests\TestCase;
 
 class GalySharedImageUrlTest extends TestCase
 {
+    /**
+     * En Windows el manejador del archivo recién borrado puede seguir abierto y
+     * rmdir falla con "Directory not empty". Son directorios temporales creados por
+     * esta prueba, así que se intentan borrar sin hacer fallar el test.
+     */
+    private function borrarArbol(string $ruta): void
+    {
+        if (! is_dir($ruta)) {
+            return;
+        }
+
+        foreach (scandir($ruta) ?: [] as $entrada) {
+            if ($entrada === '.' || $entrada === '..') {
+                continue;
+            }
+            $hijo = $ruta.DIRECTORY_SEPARATOR.$entrada;
+            is_dir($hijo) ? $this->borrarArbol($hijo) : @unlink($hijo);
+        }
+
+        @rmdir($ruta);
+    }
+
     public function test_shared_images_are_served_by_the_store_host_and_not_by_the_local_api_host(): void
     {
         $public = sys_get_temp_dir().DIRECTORY_SEPARATOR.'galy-public-'.uniqid('', true);
@@ -23,10 +45,7 @@ class GalySharedImageUrlTest extends TestCase
             $this->assertSame(asset('galy_api/img/product.png'), $url);
             $this->assertStringNotContainsString('127.0.0.1:9999', $url);
         } finally {
-            unlink($public.DIRECTORY_SEPARATOR.'galy_api/img/product.png');
-            rmdir($public.DIRECTORY_SEPARATOR.'galy_api'.DIRECTORY_SEPARATOR.'img');
-            rmdir($public.DIRECTORY_SEPARATOR.'galy_api');
-            rmdir($public);
+            $this->borrarArbol($public);
         }
     }
 
@@ -59,8 +78,7 @@ class GalySharedImageUrlTest extends TestCase
                 ProductoImagen::resolveUrl('product.png')
             );
         } finally {
-            unlink($imagesPath.DIRECTORY_SEPARATOR.'product.png');
-            rmdir($imagesPath);
+            $this->borrarArbol($imagesPath);
         }
     }
 }

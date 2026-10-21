@@ -650,9 +650,28 @@ class MercadoPagoService
      */
     public function abrirCheckout(array $datos): IntentoPagoMercadoPago
     {
+        $firmaCarrito = hash('sha256', json_encode([$datos['usuario_id'], $datos['items'], $datos['monto']]));
+
+        // Dos clics en «Pagar con tarjeta» eran dos cheques vivos de Mercado Pago
+        // sobre el mismo carrito: el cliente podía pagar en el link que la tienda
+        // ya dio por perdido, y ese pago no tiene pedido asociado. Mismo carrito,
+        // mismo monto y ningún pedido ligado == el mismo cheque, no otro.
+        $abierto = IntentoPagoMercadoPago::where('usuario_id', $datos['usuario_id'])
+            ->where('firma_carrito', $firmaCarrito)
+            ->whereNull('pedido_id')
+            ->where('estado', IntentoPagoMercadoPago::ESTADO_ESPERANDO)
+            ->where('expira_at', '>', now())
+            ->whereNotNull('checkout_url')
+            ->latest('created_at')
+            ->first();
+
+        if ($abierto) {
+            return $abierto;
+        }
+
         $intento = IntentoPagoMercadoPago::create([
             'usuario_id' => $datos['usuario_id'],
-            'firma_carrito' => hash('sha256', json_encode([$datos['usuario_id'], $datos['items'], $datos['monto']])),
+            'firma_carrito' => $firmaCarrito,
             'monto' => $datos['monto'],
             'divisa' => $datos['divisa'],
             'estado' => IntentoPagoMercadoPago::ESTADO_INICIANDO,
