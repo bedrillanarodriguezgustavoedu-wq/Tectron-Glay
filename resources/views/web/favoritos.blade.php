@@ -34,13 +34,19 @@
                         <!-- User Info -->
                         <div class="user-info" data-aos="fade-right">
                             <div class="user-avatar">
-                                <img src="{{ asset('storage/' . $ajuste->logo) }}" alt="Profile" loading="lazy">
+                                @if (Auth::user()->ruta_foto)
+                                    <img src="{{ Auth::user()->ruta_foto }}" alt="Tu foto de perfil" loading="lazy">
+                                @elseif ($ajuste?->logo)
+                                    <img src="{{ asset('storage/' . $ajuste->logo) }}" alt="Logo de {{ $ajuste->nombre ?? 'la tienda' }}" loading="lazy">
+                                @else
+                                    <span class="account-avatar-fallback" aria-hidden="true">{{ Auth::user()->iniciales }}</span>
+                                @endif
                                 <span class="status-badge"><i class="bi bi-shield-check"></i></span>
                             </div>
                             <h4>{{ Auth::user()->name }}</h4>
                             <div class="user-status">
                                 <i class="bi bi-award"></i>
-                                <span>{{ Auth::user()->roles()->pluck('name')->implode(',') }}</span>
+                                <span>{{ Auth::user()->roles()->pluck('name')->implode(', ') ?: 'Cliente' }}</span>
                             </div>
                         </div>
 

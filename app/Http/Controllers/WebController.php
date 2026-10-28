@@ -274,7 +274,16 @@ class WebController extends Controller
         $ajuste = Ajuste::first();
         $asesores = Asesor::activos()->get();
 
-        return view('web.asesores', compact('ajuste', 'asesores'));
+        // El filtro por rubro se arma con lo que realmente tiene asesores: un
+        // chip que no devuelve ninguna tarjeta solo confunde al cliente.
+        $rubros = $asesores
+            ->map(fn (Asesor $asesor) => trim((string) $asesor->rubro))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+
+        return view('web.asesores', compact('ajuste', 'asesores', 'rubros'));
     }
 
     public function contacto()

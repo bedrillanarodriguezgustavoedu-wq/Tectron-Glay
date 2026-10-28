@@ -33,3 +33,11 @@ Thumbs.db
 
 # Scratch de pruebas con curl (contiene cookies de sesión)
 /cookies.txt
+
+# Paquete que arma deploy/paquetar.ps1: es una copia de todo el proyecto, no código fuente
+/deploy/paquete
+/deploy/*.zip
+
+# Caché de Blade: se regenera sola y aporta ~70 archivos por sesión al historial
+/storage/framework/views/*
+!/storage/framework/views/.gitignore

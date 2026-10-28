@@ -77,6 +77,7 @@ class AsesorController extends Controller
         $datos = $request->validate([
             'nombre' => 'required|string|max:100',
             'cargo' => 'nullable|string|max:100',
+            'rubro' => 'nullable|string|max:60',
             'whatsapp' => [
                 'nullable', 'string', 'max:30',
                 function ($atributo, $valor, $fallar) {
@@ -87,14 +88,29 @@ class AsesorController extends Controller
                     }
                 },
             ],
+            'telefono' => [
+                'nullable', 'string', 'max:30',
+                function ($atributo, $valor, $fallar) {
+                    if (trim((string) $valor) !== '' && strlen(preg_replace('/\D+/', '', $valor)) < 8) {
+                        $fallar('Ese teléfono no tiene al menos 8 dígitos, así que el botón de llamada no marcaría nada.');
+                    }
+                },
+            ],
             'email' => 'nullable|email|max:150',
             'horario' => 'nullable|string|max:100',
+            'saludo' => 'nullable|string|max:200',
             'foto' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
             'orden' => 'nullable|integer|min:0|max:999',
             'activo' => 'nullable|boolean',
         ], [
             'whatsapp.max' => 'El número de WhatsApp no puede tener más de 30 caracteres.',
+            'telefono.max' => 'El teléfono no puede tener más de 30 caracteres.',
         ]);
+
+        // Un espacio en vez de un rubro dividiría el filtro en dos chips que se leen igual.
+        foreach (['rubro', 'saludo', 'telefono', 'whatsapp', 'horario'] as $campo) {
+            $datos[$campo] = filled($datos[$campo] ?? null) ? trim($datos[$campo]) : null;
+        }
 
         if ($request->hasFile('foto')) {
             if ($asesor?->foto && Storage::disk('public')->exists($asesor->foto)) {

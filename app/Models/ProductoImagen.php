@@ -26,6 +26,20 @@ class ProductoImagen extends Model
         return self::resolveUrl($this->imagen);
     }
 
+    /**
+     * Base para mostrar fotos compartidas con GALY en pantallas que solo reciben
+     * un prefijo. Si la tienda también sirve la carpeta, la URL se arma con el
+     * host de la petición; `galy.public_url` está fijado a una máquina concreta.
+     */
+    public static function sharedImagesBaseUrl(): string
+    {
+        $carpeta = public_path('galy_api') . DIRECTORY_SEPARATOR . 'img';
+
+        return is_dir($carpeta)
+            ? asset('galy_api/img')
+            : rtrim((string) config('galy.public_url'), '/') . '/img';
+    }
+
     public static function sharedAssetUrl(?string $image): ?string
     {
         $image = trim((string) $image);

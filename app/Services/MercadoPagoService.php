@@ -250,7 +250,7 @@ class MercadoPagoService
     ): array {
         $retorno = $this->urlBase().'/pago/tarjeta/retorno?referencia='.rawurlencode($referencia).'&estado=';
 
-        $respuesta = $this->request()->post($this->apiUrl().'/checkout/preferences', [
+        $preferencia = [
             'items' => [[
                 'title' => $titulo,
                 'description' => $descripcion,
@@ -260,15 +260,23 @@ class MercadoPagoService
             ]],
             'payer' => $payer ?: ['email' => 'cliente@galy.pe'],
             'external_reference' => $referencia,
-            'back_urls' => [
+            'statement_descriptor' => config('services.mercadopago.statement_descriptor'),
+        ];
+
+        // Con una URL local Mercado Pago rechaza el auto_return (HTTP 400) y, si se
+        // le quita, descarta en silencio los back_urls: no llega ni el retorno ni el
+        // webhook. Se omite el bloque y el pago lo cierra mercadopago:reconciliar.
+        if (! $this->urlBaseEsLocal()) {
+            $preferencia['back_urls'] = [
                 'success' => $retorno.'success',
                 'pending' => $retorno.'pending',
                 'failure' => $retorno.'failure',
-            ],
-            'auto_return' => 'approved',
-            'notification_url' => $this->urlBase().'/webhooks/mercadopago',
-            'statement_descriptor' => config('services.mercadopago.statement_descriptor'),
-        ]);
+            ];
+            $preferencia['auto_return'] = 'approved';
+            $preferencia['notification_url'] = $this->urlBase().'/webhooks/mercadopago';
+        }
+
+        $respuesta = $this->request()->post($this->apiUrl().'/checkout/preferences', $preferencia);
 
         if ($respuesta->failed()) {
             // 401 y 403 son problemas de credencial, no fallos pasajeros de la
@@ -280,7 +288,8 @@ class MercadoPagoService
             }
 
             throw new RuntimeException(
-                'Mercado Pago rechazó la creación del checkout (HTTP '.$respuesta->status().').'
+                'Mercado Pago rechazó la creación del checkout (HTTP '.$respuesta->status().'). '
+                .mb_substr((string) $respuesta->body(), 0, 400)
             );
         }
 
@@ -385,9 +394,26 @@ class MercadoPagoService
      *
      * @param  array<string, mixed>|null  $pago
      */
-    public function aplicarPagoAlIntento(IntentoPagoMercadoPago $intento, ?array $pago): void
+    public function aplicarPagoAlIntento(IntentoPagoMercadoPago $intento, ?array $pago, string $retorno = ''): void
     {
         if (! $pago) {
+            // `failure` es la URL de retorno que nosotros mismos le pedimos a Mercado
+            // Pago que use cuando el cobro no pasa, así que es un aviso fiable de que
+            // no hay nada que buscar. Se cierra el intento para que el panel no siga
+            // mostrando un pago «esperando» que ya murió. Cerrarlo nunca confirma
+            // dinero: si el webhook llega después con un cobro aprobado,
+            // `aplicarPagoAlIntento` lo confirma igual.
+            if ($retorno === 'failure' && $intento->estado === IntentoPagoMercadoPago::ESTADO_ESPERANDO) {
+                $intento->estado = IntentoPagoMercadoPago::ESTADO_FALLIDO;
+                $intento->detalle_estado_mercadopago = 'rechazo sin payment_id (Mercado Pago devolvió failure)';
+                $intento->save();
+                $this->registrarNota(
+                    $intento->pedido_id,
+                    'Mercado Pago devolvió el pago como rechazado y no registró ningún cobro. '
+                    .'El pedido sigue pendiente de pago: no se le cobró nada al cliente.'
+                );
+            }
+
             return;
         }
 
@@ -767,9 +793,54 @@ class MercadoPagoService
         return $this->urlBase().'/pago/tarjeta/retorno';
     }
 
+    /**
+     * True cuando la URL pública es esta misma PC. Mercado Pago no puede llevar
+     * al cliente a una dirección que solo existe dentro de tu red.
+     */
+    public function urlBaseEsLocal(): bool
+    {
+        $host = mb_strtolower((string) parse_url($this->urlBase(), PHP_URL_HOST));
+
+        return $host === '' || in_array($host, ['localhost', '127.0.0.1', '::1', '0.0.0.0'], true);
+    }
+
     public function urlDeWebhook(): string
     {
         return $this->urlBase().'/webhooks/mercadopago';
+    }
+
+    /**
+     * Comprueba si la URL pública que se le entregó a Mercado Pago sigue sirviendo
+     * la tienda. Un túnel que muere o cambia de nombre deja la tienda intacta en
+     * local pero devuelve al cliente a una pantalla que no existe, y desde el panel
+     * eso es invisible: el pago se rechaza y nadie sabe por qué.
+     *
+     * @return array{ok: bool, url: string, detalle: string}
+     */
+    public function estadoEnlacePublico(): array
+    {
+        $url = $this->urlDeRetorno();
+        $host = (string) parse_url($url, PHP_URL_HOST);
+
+        if (in_array(mb_strtolower($host), ['127.0.0.1', 'localhost', '::1'], true)) {
+            return [
+                'ok' => false,
+                'url' => $url,
+                'detalle' => 'Apunta a tu propia PC: Mercado Pago no puede redirigir ahí al cliente.',
+            ];
+        }
+
+        $prueba = Cache::remember('mercadopago.enlace-publico', 300, function () use ($url) {
+            try {
+                $estado = Http::timeout(6)->withoutRedirecting()->get($url)->status();
+
+                return ['ok' => $estado < 500, 'detalle' => 'La tienda respondió HTTP '.$estado.'.'];
+            } catch (Throwable $e) {
+                return ['ok' => false, 'detalle' => mb_substr($e->getMessage(), 0, 140)];
+            }
+        });
+
+        return ['ok' => $prueba['ok'], 'url' => $url, 'detalle' => $prueba['detalle']];
     }
 
     private function request(): \Illuminate\Http\Client\PendingRequest

@@ -191,6 +191,39 @@
                         <span>Atencion al cliente 24 horas al día, 7 días a la semana </span>
                     </div>
                 </div>
+
+                @if ($asesores_producto->isNotEmpty())
+                    <div class="border rounded-4 p-3 mt-4 bg-body">
+                        <p class="fw-bold text-dark mb-1 small">
+                            <i class="bi bi-person-badge me-1 text-primary" aria-hidden="true"></i>¿Dudas sobre este producto?
+                        </p>
+                        <p class="text-muted mb-3" style="font-size: 13px;">
+                            Escríbele a un asesor: te confirma stock, precio y formas de pago al momento.
+                        </p>
+                        <div class="d-flex flex-column gap-2">
+                            @foreach ($asesores_producto as $asesor)
+                                <div class="d-flex align-items-center justify-content-between gap-2">
+                                    <div class="min-w-0">
+                                        <span class="d-block fw-semibold text-truncate" style="font-size: 14px;">{{ $asesor->nombre }}</span>
+                                        @if ($asesor->rubro)
+                                            <small class="text-muted text-truncate d-block">{{ $asesor->rubro }}</small>
+                                        @endif
+                                    </div>
+                                    @if ($asesor->enlace_whatsapp)
+                                        <a href="{{ $asesor->enlaceWhatsAppConMensaje($producto->nombre) }}"
+                                            target="_blank" rel="noopener"
+                                            class="btn btn-sm btn-success rounded-pill px-3 text-nowrap">
+                                            <i class="bi bi-whatsapp me-1" aria-hidden="true"></i>Escribir
+                                        </a>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
+                        <a href="{{ route('web.asesores') }}" class="small text-primary fw-semibold d-inline-block mt-3">
+                            Ver todos los asesores <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                @endif
             </div>
         </div>
         </div>

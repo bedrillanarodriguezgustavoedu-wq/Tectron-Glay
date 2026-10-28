@@ -200,6 +200,135 @@
             margin-top: 1.25rem;
         }
         .account .orders-pagination p { margin: 0; color: #64748b; font-size: .875rem; }
+        /* Resumen, aviso de pago y paneles laterales son información, no decoración:
+           se pintan con el pedido y nunca dependen de una animación al hacer scroll. */
+        .account-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+            gap: .75rem;
+            margin-bottom: 1.25rem;
+        }
+        .account-summary__item {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            padding: .85rem 1rem;
+            border: 1px solid rgba(0, 0, 0, .07);
+            border-radius: 14px;
+            background: #fff;
+        }
+        .account-summary__icon {
+            display: grid;
+            place-items: center;
+            flex: 0 0 auto;
+            width: 2.4rem;
+            height: 2.4rem;
+            border-radius: 12px;
+            background: rgba(244, 67, 54, .08);
+            color: var(--accent-color);
+            font-size: 1.05rem;
+        }
+        .account-summary__item strong { display: block; font-size: 1.15rem; line-height: 1.15; }
+        .account-summary__item span { color: #64748b; font-size: .78rem; }
+        .account-alert {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+            padding: 1rem 1.15rem;
+            border: 1px solid rgba(255, 193, 7, .45);
+            border-left: 5px solid #ffc107;
+            border-radius: 14px;
+            background: #fffaf0;
+        }
+        .account-alert h3 { font-size: 1rem; margin: 0 0 .25rem; }
+        .account-alert p { margin: 0; color: #64748b; font-size: .875rem; }
+        .account-panels {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+            /* Sin estirar: un panel de tres líneas junto a uno de ocho dejaría un
+               hueco blanco que parece contenido que no cargó. */
+            align-items: start;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        .account-panel {
+            padding: 1.15rem 1.25rem;
+            border: 1px solid rgba(0, 0, 0, .07);
+            border-radius: 16px;
+            background: #fff;
+        }
+        .account-panel > h3 {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            margin: 0 0 .75rem;
+            font-size: .95rem;
+            font-weight: 700;
+            color: #334155;
+        }
+        .account-panel__empty { margin: 0; color: #64748b; font-size: .875rem; }
+        .account-address { padding: .65rem 0; border-top: 1px dashed rgba(0, 0, 0, .08); }
+        .account-address:first-of-type { padding-top: 0; border-top: 0; }
+        .account-address h4 { margin: 0 0 .15rem; font-size: .85rem; color: #0f172a; }
+        .account-address p { margin: 0; font-size: .82rem; color: #64748b; overflow-wrap: anywhere; }
+        .account-favs {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+            gap: .6rem;
+        }
+        .account-favs img {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: contain;
+            border: 1px solid #edf0f4;
+            border-radius: 10px;
+            background: #fff;
+        }
+        .account-help ul { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+        .account-help li a {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            color: #0f172a;
+            font-size: .875rem;
+            text-decoration: none;
+        }
+        .account-help li a:hover { text-decoration: underline; }
+        .account #orders,
+        .account #direcciones,
+        .account #favoritos,
+        .account #ayuda { scroll-margin-top: 6rem; }
+        /* El tema estiliza `button.btn-*` del pie de tarjeta; el enlace al comprobante
+           es un <a> y tiene que quedar exactamente igual. */
+        .account .content-area .orders-grid .order-card .order-footer a.btn-open {
+            flex: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 40px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            background-color: color-mix(in srgb, var(--accent-color), transparent 92%);
+            color: var(--accent-color);
+            transition: all .3s ease;
+        }
+        .account .content-area .orders-grid .order-card .order-footer a.btn-open:hover {
+            background-color: color-mix(in srgb, var(--accent-color), transparent 88%);
+        }
+        .account .content-area .orders-grid .order-card .order-footer a.btn-open:focus-visible {
+            outline: 3px solid rgba(13, 110, 253, .45);
+            outline-offset: 2px;
+        }
+        @media (max-width: 575.98px) {
+            .account-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .account-alert { flex-direction: column; align-items: flex-start; }
+        }
         @media (max-width: 575.98px) {
             .account .account-intro { padding: 1rem; }
             .account .account-intro__count { width: 100%; text-align: left; }
@@ -225,7 +354,7 @@
     <!-- Account Section -->
     <section id="account" class="account section">
 
-        <div class="container" data-aos="fade-up" data-aos-delay="100">
+        <div class="container">
 
             <!-- Mobile Menu Toggle -->
             <div class="mobile-menu d-lg-none mb-4">
@@ -240,13 +369,15 @@
                 <div class="col-lg-3">
                     <div class="profile-menu collapse d-lg-block" id="profileMenu">
                         <!-- User Info -->
-                        <div class="user-info" data-aos="fade-right">
+                        <div class="user-info">
                             <div class="user-avatar">
-                                @if ($ajuste?->logo)
+                                @if (Auth::user()->ruta_foto)
+                                    <img src="{{ Auth::user()->ruta_foto }}" alt="Tu foto de perfil" loading="lazy">
+                                @elseif ($ajuste?->logo)
                                     <img src="{{ asset('storage/' . $ajuste->logo) }}" alt="Logo de {{ $ajuste->nombre ?? 'la tienda' }}" loading="lazy">
                                 @else
                                     <span class="account-avatar-fallback h-100 w-100 rounded-circle bg-light text-primary fs-2 fw-bold" aria-hidden="true">
-                                        {{ mb_strtoupper(mb_substr(Auth::user()->name, 0, 1)) }}
+                                        {{ Auth::user()->iniciales }}
                                     </span>
                                 @endif
                                 <span class="status-badge" aria-hidden="true"><i class="bi bi-shield-check"></i></span>
@@ -260,13 +391,33 @@
                         </div>
 
                         <!-- Navigation Menu -->
-                        <nav class="menu-nav">
+                        <nav class="menu-nav" aria-label="Secciones de tu cuenta">
                             <ul class="nav flex-column">
                                 <li class="nav-item">
                                     <a class="nav-link active" href="#orders" aria-current="page">
                                         <i class="bi bi-box-seam"></i>
                                         <span>Pedidos</span>
                                         <span class="badge">{{ $total_pedidos }}</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="#direcciones">
+                                        <i class="bi bi-geo-alt"></i>
+                                        <span>Direcciones</span>
+                                        <span class="badge">{{ $total_direcciones }}</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="#favoritos">
+                                        <i class="bi bi-heart"></i>
+                                        <span>Favoritos</span>
+                                        <span class="badge">{{ $total_favoritos }}</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="#ayuda">
+                                        <i class="bi bi-question-circle"></i>
+                                        <span>Ayuda</span>
                                     </a>
                                 </li>
                             </ul>
@@ -291,7 +442,10 @@
                         <div class="tab-content">
                             <!-- Orders Tab -->
                             <div class="tab-pane fade show active" id="orders">
-                                <div class="account-intro" data-aos="fade-up">
+                                {{-- Aquí no se usa data-aos: esta pantalla es la única donde
+                                     el cliente ve lo que debe pagar, y un bloque que queda
+                                     invisible por una animación es un pago perdido. --}}
+                                <div class="account-intro">
                                     <div>
                                         <h2>Hola, {{ Auth::user()->name }}</h2>
                                         <p>Consulta el estado y los detalles de tus compras.</p>
@@ -302,22 +456,81 @@
                                     </div>
                                 </div>
 
+                                <div class="account-summary">
+                                    <div class="account-summary__item">
+                                        <span class="account-summary__icon" aria-hidden="true"><i class="bi bi-wallet2"></i></span>
+                                        <div>
+                                            <strong>{{ number_format($resumen['por_pagar']) }}</strong>
+                                            <span>Por pagar</span>
+                                        </div>
+                                    </div>
+                                    <div class="account-summary__item">
+                                        <span class="account-summary__icon" aria-hidden="true"><i class="bi bi-truck"></i></span>
+                                        <div>
+                                            <strong>{{ number_format($resumen['en_curso']) }}</strong>
+                                            <span>En curso</span>
+                                        </div>
+                                    </div>
+                                    <div class="account-summary__item">
+                                        <span class="account-summary__icon" aria-hidden="true"><i class="bi bi-check2-circle"></i></span>
+                                        <div>
+                                            <strong>{{ number_format($resumen['entregados']) }}</strong>
+                                            <span>Entregados</span>
+                                        </div>
+                                    </div>
+                                    <div class="account-summary__item">
+                                        <span class="account-summary__icon" aria-hidden="true"><i class="bi bi-x-circle"></i></span>
+                                        <div>
+                                            <strong>{{ number_format($resumen['cancelados']) }}</strong>
+                                            <span>Cancelados</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if ($pedido_por_pagar)
+                                    <div class="account-alert" role="status">
+                                        <div>
+                                            <h3>
+                                                {{ $resumen['por_pagar'] === 1
+                                                    ? 'Tienes un pedido con el pago pendiente'
+                                                    : 'Tienes '.$resumen['por_pagar'].' pedidos con el pago pendiente' }}
+                                            </h3>
+                                            <p>
+                                                El más reciente es #ORD-{{ $pedido_por_pagar->id }},
+                                                por {{ \App\Models\Ajuste::formatear_precio($pedido_por_pagar->total) }}.
+                                                Ábrelo para ver cómo completarlo; si ya pagaste, avísanos y lo verificamos.
+                                            </p>
+                                        </div>
+                                        <a href="{{ route('web.pedidos.confirmacion', $pedido_por_pagar->id) }}"
+                                            class="btn btn-primary btn-sm rounded-pill px-3">
+                                            <i class="bi bi-credit-card me-1" aria-hidden="true"></i> Ver cómo pagar
+                                        </a>
+                                    </div>
+                                @endif
+
                                 <div class="orders-grid">
                                     @forelse ($pedidos as $pedido)
                                         @php
                                             $unidades = (int) $pedido->detalles->sum('cantidad');
-                                            $estadoActual = $pedido->estado_orden;
+                                            $estadoActual = $pedido->estado_para_cliente();
                                             $estadoClass = match (mb_strtolower($estadoActual)) {
                                                 'enviado', 'en transporte' => 'shipped',
                                                 'entregado', 'listo para su recojo' => 'delivered',
                                                 'cancelado' => 'cancelled',
                                                 default => 'processing',
                                             };
+                                            $pagoTexto = $pedido->getEstadoPagoTexto();
+                                            $pagoClass = match (mb_strtolower($pagoTexto)) {
+                                                'pagado' => 'delivered',
+                                                'pendiente' => 'processing',
+                                                'cancelado', 'reembolsado' => 'cancelled',
+                                                default => 'processing',
+                                            };
                                             $flujo = $pedido->getFlujoEstados();
                                             $current_index = array_search($estadoActual, $flujo, true);
                                             $current_index = $current_index === false ? -1 : $current_index;
                                         @endphp
-                                        <article class="order-card" data-aos="fade-up">
+                                        <article class="order-card">
                                             <div class="order-header">
                                                 <div class="order-id">
                                                     <span class="label">Número de pedido:</span>
@@ -346,6 +559,10 @@
                                                         <span class="status {{ $estadoClass }}">{{ $estadoActual }}</span>
                                                     </div>
                                                     <div class="info-row">
+                                                        <span>Pago</span>
+                                                        <span class="status {{ $pagoClass }}">{{ $pagoTexto }}</span>
+                                                    </div>
+                                                    <div class="info-row">
                                                         <span>Productos</span>
                                                         <span>{{ $unidades }} {{ $unidades === 1 ? 'unidad' : 'unidades' }}</span>
                                                     </div>
@@ -367,6 +584,9 @@
                                                     aria-expanded="false" aria-controls="details{{ $pedido->id }}">
                                                     <i class="bi bi-receipt me-1" aria-hidden="true"></i> Ver detalles
                                                 </button>
+                                                <a class="btn-open" href="{{ route('web.pedidos.confirmacion', $pedido->id) }}">
+                                                    <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i> Abrir pedido
+                                                </a>
                                             </div>
 
                                             <!-- Order Tracking -->
@@ -489,7 +709,17 @@
                                                         @if ($pedido->direccion_envio)
                                                             <h5>Dirección registrada</h5>
                                                             <div class="address-info">
-                                                                <p>{{ $pedido->direccion_envio }}</p>
+                                                                {{-- Mismo criterio que el comprobante: la columna guarda
+                                                                     «Alias: casa | Dirección: … | Provincia: N/A» y al
+                                                                     cliente eso no le dice dónde llega su caja. --}}
+                                                                @php $lineasDireccion = $pedido->direccion_envio_lineas(); @endphp
+                                                                @if ($lineasDireccion === [])
+                                                                    <p>{{ $pedido->direccion_envio }}</p>
+                                                                @else
+                                                                    @foreach ($lineasDireccion as $linea)
+                                                                        <p class="mb-0">{{ $linea }}</p>
+                                                                    @endforeach
+                                                                @endif
                                                             </div>
                                                         @endif
                                                     </div>
@@ -522,6 +752,92 @@
                                         {{ $pedidos->links('pagination::bootstrap-5') }}
                                     </nav>
                                 @endif
+
+                                <div class="account-panels">
+                                    <section class="account-panel" id="direcciones">
+                                        <h3><i class="bi bi-geo-alt" aria-hidden="true"></i> Direcciones guardadas</h3>
+                                        @if ($direcciones->isEmpty())
+                                            <p class="account-panel__empty">
+                                                Aún no guardaste ninguna dirección. Guárdala una vez y el carrito la
+                                                rellena sola en tu próxima compra.
+                                            </p>
+                                        @else
+                                            @foreach ($direcciones as $direccion)
+                                                <div class="account-address">
+                                                    <h4>
+                                                        {{ $direccion->alias }}
+                                                        @if ($direccion->es_predeterminada)
+                                                            <span class="badge text-bg-secondary">Principal</span>
+                                                        @endif
+                                                    </h4>
+                                                    <p>{{ $direccion->direccion_exacta }}</p>
+                                                    @if ($direccion->referencia)
+                                                        <p>Referencia: {{ $direccion->referencia }}</p>
+                                                    @endif
+                                                    @if ($direccion->provincia?->nombre || $direccion->departamento?->nombre)
+                                                        <p>{{ collect([$direccion->provincia?->nombre, $direccion->departamento?->nombre])->filter()->implode(', ') }}</p>
+                                                    @endif
+                                                    @if ($direccion->telefono)
+                                                        <p>Telf: {{ $direccion->telefono }}</p>
+                                                    @endif
+                                                </div>
+                                            @endforeach
+                                        @endif
+                                        <a href="{{ route('web.ajustes') }}" class="btn btn-outline-secondary btn-sm mt-3">
+                                            <i class="bi bi-pencil-square me-1" aria-hidden="true"></i> Gestionar direcciones
+                                        </a>
+                                    </section>
+
+                                    <section class="account-panel" id="favoritos">
+                                        <h3><i class="bi bi-heart" aria-hidden="true"></i> Tus favoritos</h3>
+                                        @if ($favoritos->isEmpty())
+                                            <p class="account-panel__empty">
+                                                Marca productos con el corazón y los tendrás aquí para decidir con calma.
+                                            </p>
+                                        @else
+                                            <div class="account-favs">
+                                                @foreach ($favoritos as $favorito)
+                                                    @if ($favorito->producto)
+                                                        <img src="{{ $favorito->producto->imagen_principal_url }}"
+                                                            alt="{{ $favorito->producto->nombre }}" loading="lazy">
+                                                    @endif
+                                                @endforeach
+                                            </div>
+                                            <p class="account-panel__empty mt-2">
+                                                {{ number_format($total_favoritos) }} {{ $total_favoritos === 1 ? 'producto guardado' : 'productos guardados' }}.
+                                            </p>
+                                        @endif
+                                        <a href="{{ route('web.favoritos.index') }}" class="btn btn-outline-secondary btn-sm mt-3">
+                                            <i class="bi bi-heart-fill me-1" aria-hidden="true"></i> Ver mis favoritos
+                                        </a>
+                                    </section>
+
+                                    <section class="account-panel account-help" id="ayuda">
+                                        <h3><i class="bi bi-life-preserver" aria-hidden="true"></i> ¿Necesitas ayuda?</h3>
+                                        <ul>
+                                            <li>
+                                                <a href="{{ route('web.contacto') }}">
+                                                    <i class="bi bi-envelope" aria-hidden="true"></i> Escríbenos desde la tienda
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a href="{{ route('web.asesores') }}">
+                                                    <i class="bi bi-person-badge" aria-hidden="true"></i> Hablar con un asesor
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a href="{{ route('web.ajustes') }}">
+                                                    <i class="bi bi-person-gear" aria-hidden="true"></i> Cambiar mis datos o mi contraseña
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a href="{{ route('web.productos') }}">
+                                                    <i class="bi bi-shop" aria-hidden="true"></i> Seguir comprando
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </section>
+                                </div>
 
                             </div>
 

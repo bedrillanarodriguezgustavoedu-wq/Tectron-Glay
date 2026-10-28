@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ProductoImagen;
 use App\Services\Galy\GalyApiClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -45,7 +46,7 @@ class SoporteTecnicoController extends Controller
         return view('admin.soporte.index', [
             'tickets' => $tickets,
             'statuses' => self::STATUSES,
-            'imagesUrl' => config('galy.public_url').'/img',
+            'imagesUrl' => ProductoImagen::sharedImagesBaseUrl(),
         ]);
     }
 

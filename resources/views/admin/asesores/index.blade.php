@@ -22,7 +22,8 @@
                     <div class="alert alert-info">
                         Estos asesores aparecen en la página pública
                         <a href="{{ route('web.asesores') }}" target="_blank">/asesores</a>.
-                        Cada tarjeta muestra su propio botón de WhatsApp y de correo.
+                        Cada tarjeta ofrece WhatsApp (con el mensaje ya escrito), correo, llamada y copiar el número.
+                        Los que tienen <strong>Rubro</strong> forman los filtros de esa página.
                     </div>
 
                     <div class="table-responsive">
@@ -33,6 +34,7 @@
                                     <th style="width: 90px; text-align: center;">Foto</th>
                                     <th>Nombre</th>
                                     <th>Cargo</th>
+                                    <th>Rubro</th>
                                     <th style="width: 150px; text-align: center;">WhatsApp</th>
                                     <th>Correo</th>
                                     <th style="width: 80px; text-align: center;">Orden</th>
@@ -58,6 +60,7 @@
                                         </td>
                                         <td class="fw-bold">{{ $asesor->nombre }}</td>
                                         <td>{{ $asesor->cargo ?: '—' }}</td>
+                                        <td>{{ $asesor->rubro ?: '—' }}</td>
                                         <td style="text-align: center;">
                                             @if ($asesor->enlace_whatsapp)
                                                 <a href="{{ $asesor->enlace_whatsapp }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success">
@@ -130,7 +133,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="9" class="text-center py-4 text-muted">
+                                        <td colspan="10" class="text-center py-4 text-muted">
                                             Todavía no hay asesores. Crea el primero para que aparezca en la tienda.
                                         </td>
                                     </tr>

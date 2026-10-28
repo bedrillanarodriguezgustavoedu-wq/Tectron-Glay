@@ -24,6 +24,16 @@
 </div>
 
 <div class="form-group mb-3">
+    <label for="rubro" class="form-label fw-bold">Rubro que atiende</label>
+    <input type="text" name="rubro" id="rubro" class="form-control"
+        value="{{ old('rubro', $modelo?->rubro) }}" maxlength="60" placeholder="Laptops y componentes">
+    <small class="text-muted">Aparece como etiqueta en la tarjeta y arma los filtros de la página. Déjalo vacío si atiende de todo.</small>
+    @error('rubro')
+        <small class="text-danger d-block">{{ $message }}</small>
+    @enderror
+</div>
+
+<div class="form-group mb-3">
     <label for="whatsapp" class="form-label fw-bold">WhatsApp</label>
     <div class="input-group">
         <span class="input-group-text"><i class="bi bi-whatsapp"></i></span>
@@ -34,13 +44,27 @@
     @if ($modelo)
         <small class="d-block text-muted mt-1">
             @if ($modelo->enlace_whatsapp)
-                El botón abre: <code>{{ $modelo->enlace_whatsapp }}</code>
+                El botón abre <code>{{ $modelo->enlace_whatsapp }}</code> y llega:
+                <em>«{{ $modelo->mensajeWhatsApp() }}»</em>
             @else
                 Ahora mismo este asesor no muestra botón de WhatsApp.
             @endif
         </small>
     @endif
     @error('whatsapp')
+        <small class="text-danger d-block">{{ $message }}</small>
+    @enderror
+</div>
+
+<div class="form-group mb-3">
+    <label for="telefono" class="form-label fw-bold">Teléfono de llamada</label>
+    <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-telephone"></i></span>
+        <input type="text" name="telefono" id="telefono" class="form-control"
+            value="{{ old('telefono', $modelo?->telefono) }}" maxlength="30" placeholder="01 555 1234">
+    </div>
+    <small class="text-muted">Opcional. Solo para quien prefiera marcar en vez de escribir; muestra el botón «Llamar».</small>
+    @error('telefono')
         <small class="text-danger d-block">{{ $message }}</small>
     @enderror
 </div>
@@ -62,6 +86,19 @@
     <input type="text" name="horario" id="horario" class="form-control"
         value="{{ old('horario', $modelo?->horario) }}" maxlength="100" placeholder="Lun a Sáb, 9:00 a 19:00">
     @error('horario')
+        <small class="text-danger d-block">{{ $message }}</small>
+    @enderror
+</div>
+
+<div class="form-group mb-3">
+    <label for="saludo" class="form-label fw-bold">Mensaje que abre el chat</label>
+    <textarea name="saludo" id="saludo" class="form-control" rows="2" maxlength="200"
+        placeholder="Hola, quiero cotizar una laptop para oficina">{{ old('saludo', $modelo?->saludo) }}</textarea>
+    <small class="text-muted">
+        Opcional. Es lo que el cliente ya tiene escrito cuando se abre WhatsApp.
+        Si lo dejas vacío usamos uno automático que menciona tu nombre y tu rubro.
+    </small>
+    @error('saludo')
         <small class="text-danger d-block">{{ $message }}</small>
     @enderror
 </div>

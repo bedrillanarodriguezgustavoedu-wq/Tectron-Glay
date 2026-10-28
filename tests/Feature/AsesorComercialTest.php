@@ -3,9 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\Asesor;
+use App\Models\Categoria;
+use App\Models\Producto;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -183,5 +187,119 @@ class AsesorComercialTest extends TestCase
 
         $this->get('/admin/asesores')->assertForbidden();
         $this->post('/admin/asesores/create')->assertForbidden();
+    }
+
+    public function test_cada_rubro_distinto_arma_su_chip_de_filtro_en_la_pagina(): void
+    {
+        Asesor::create(['nombre' => 'Ana Laptops', 'rubro' => 'Laptops', 'whatsapp' => '51987654321', 'activo' => true]);
+        Asesor::create(['nombre' => 'Luis Componentes', 'rubro' => 'Componentes', 'activo' => true]);
+
+        $contenido = $this->get('/asesores')->assertSuccessful()->getContent();
+
+        $this->assertStringContainsString('data-rubro="Laptops"', $contenido);
+        $this->assertStringContainsString('data-rubro="Componentes"', $contenido);
+        $this->assertStringContainsString('data-rubro=""', $contenido, 'Sin el chip «Todos» no hay forma de volver atrás.');
+    }
+
+    public function test_una_pagina_con_un_solo_rubro_no_muestra_filtros(): void
+    {
+        Asesor::create(['nombre' => 'Ana', 'rubro' => 'Laptops', 'activo' => true]);
+        Asesor::create(['nombre' => 'Bea', 'rubro' => 'Laptops', 'activo' => true]);
+
+        $this->assertStringNotContainsString(
+            'asesores-filtro',
+            $this->tarjetasDeAsesores($this->get('/asesores')->getContent()),
+            'Filtrar entre dos etiquetas idénticas solo confunde.'
+        );
+    }
+
+    public function test_el_whatsapp_del_asesor_abre_con_el_mensaje_escrito_en_el_panel(): void
+    {
+        Asesor::create([
+            'nombre' => 'Ana Quispe',
+            'rubro' => 'Laptops',
+            'whatsapp' => '51987654321',
+            'saludo' => 'Hola, quiero cotizar una laptop',
+            'activo' => true,
+        ]);
+
+        $tarjetas = $this->tarjetasDeAsesores($this->get('/asesores')->getContent());
+
+        $this->assertStringContainsString('text='.rawurlencode('Hola, quiero cotizar una laptop'), $tarjetas);
+        $this->assertStringNotContainsString('necesito asesoría', $tarjetas, 'El mensaje propio no debe pisarse con el automático.');
+    }
+
+    public function test_sin_mensaje_propio_el_cliente_escribe_uno_que_menciona_el_rubro(): void
+    {
+        Asesor::create([
+            'nombre' => 'Ana Quispe',
+            'rubro' => 'Laptops',
+            'whatsapp' => '51987654321',
+            'activo' => true,
+        ]);
+
+        $this->assertStringContainsString(
+            rawurlencode('Hola Ana Quispe, vengo de la tienda virtual de GALY y necesito asesoría de Laptops.'),
+            $this->tarjetasDeAsesores($this->get('/asesores')->getContent())
+        );
+    }
+
+    public function test_el_telefono_de_llamada_y_el_numero_copiable_salen_en_la_tarjeta(): void
+    {
+        Asesor::create([
+            'nombre' => 'Ana Quispe',
+            'whatsapp' => '51987654321',
+            'telefono' => '+51 (1) 555-1234',
+            'activo' => true,
+        ]);
+
+        $tarjetas = $this->tarjetasDeAsesores($this->get('/asesores')->getContent());
+
+        $this->assertStringContainsString('href="tel:5115551234"', $tarjetas);
+        $this->assertStringContainsString('data-numero="51987654321"', $tarjetas);
+    }
+
+    public function test_un_telefono_imarcable_no_se_guarda_desde_el_panel(): void
+    {
+        $this->adminConPermisos(['Listado de Asesores', 'Crear Asesor', 'Guardar Asesor']);
+
+        $this->from('/admin/asesores/create')
+            ->post('/admin/asesores/create', [
+                'nombre' => 'Teléfono roto',
+                'telefono' => '1234',
+            ])
+            ->assertSessionHasErrors('telefono');
+
+        $this->assertDatabaseMissing('asesores', ['nombre' => 'Teléfono roto']);
+    }
+
+    public function test_la_ficha_del_producto_ofrece_escribirle_al_asesor_de_ese_rubro(): void
+    {
+        Schema::create('producto_imagenes', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('producto_id');
+            $table->string('imagen')->nullable();
+            $table->timestamps();
+        });
+
+        Asesor::create([
+            'nombre' => 'Ana Quispe',
+            'rubro' => 'Laptops',
+            'whatsapp' => '51987654321',
+            'activo' => true,
+        ]);
+        Asesor::create(['nombre' => 'Otro asesor', 'rubro' => 'Televisores', 'whatsapp' => '51911111111', 'activo' => true]);
+
+        $categoria = Categoria::create(['nombre' => 'Laptops', 'slug' => 'laptops-prueba']);
+        $producto = Producto::factory()->create(['categoria_id' => $categoria->id, 'nombre' => 'Portátil Ultra 15']);
+
+        $contenido = $this->get('/producto/'.$producto->id)->assertSuccessful()->getContent();
+
+        $this->assertStringContainsString('Ana Quispe', $contenido);
+        $this->assertStringNotContainsString('Otro asesor', $contenido, 'El asesor de otro rubro no debe colarse en la ficha.');
+        $this->assertStringContainsString(
+            rawurlencode('Hola Ana Quispe, vengo de la tienda virtual de GALY y quiero consultar por: Portátil Ultra 15.'),
+            $contenido
+        );
     }
 }

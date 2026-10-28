@@ -504,6 +504,19 @@
                             <h5 class="fw-bold mb-4">
                                 Resumen del Pago
                             </h5>
+                            @if (filled($orden->descuento))
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="text-danger">
+                                        Descuento
+                                        @if (filled($orden->cupon))
+                                            con cupón <strong>{{ $orden->cupon }}</strong>
+                                        @endif
+                                    </span>
+                                    <span class="fw-semibold text-danger">
+                                        -{{ \App\Models\Ajuste::formatear_precio((float) $orden->descuento) }}
+                                    </span>
+                                </div>
+                            @endif
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <span>Total Final</span>
                                 <span class="fw-bold text-success fs-4">

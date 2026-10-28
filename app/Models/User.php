@@ -10,6 +10,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -32,6 +33,7 @@ class User extends Authenticatable
         'galy_es_admin',
         'dni',
         'telefono',
+        'foto',
         'google_id',
         'checkout_privacy_accepted_at',
     ];
@@ -124,5 +126,33 @@ class User extends Authenticatable
     public function resenas()
     {
         return $this->hasMany(Resena::class, 'usuario_id', 'galy_user_id');
+    }
+
+    /**
+     * El avatar del cliente es SU foto, no el logo de la tienda: si falta o el
+     * archivo ya no está, la vista debe poder caer en las iniciales sin romperse.
+     */
+    public function getRutaFotoAttribute(): ?string
+    {
+        $foto = trim((string) $this->foto);
+
+        if ($foto === '') {
+            return null;
+        }
+
+        return Storage::disk('public')->exists($foto) ? asset('storage/'.$foto) : null;
+    }
+
+    public function getInicialesAttribute(): string
+    {
+        $partes = preg_split('/\s+/', trim((string) $this->name)) ?: [];
+
+        $iniciales = collect($partes)
+            ->filter()
+            ->take(2)
+            ->map(fn ($parte) => mb_strtoupper(mb_substr($parte, 0, 1)))
+            ->implode('');
+
+        return $iniciales !== '' ? $iniciales : 'GA';
     }
 }

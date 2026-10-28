@@ -167,29 +167,27 @@
             display: none !important;
         }
 
+        /* Elselector de medios de pago va en lista, una fila por método:
+           el botón de radio a la izquierda, el logo en medio y arriba el nombre
+           con su subtítulo. Se apila aunque quepa espacio: así se compara de un vistazo. */
         .checkout-method-grid {
             display: grid;
-            gap: .75rem;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        @media (min-width: 992px) {
-            .checkout-method-grid {
-                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            }
+            gap: .6rem;
+            grid-template-columns: 1fr;
         }
 
         .checkout-method-card {
             position: relative;
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-columns: auto auto minmax(0, 1fr);
+            column-gap: .85rem;
+            row-gap: .1rem;
             align-items: center;
-            gap: .15rem;
             margin: 0;
-            padding: 1.15rem .75rem .9rem;
-            text-align: center;
+            padding: .85rem 1rem;
+            text-align: start;
             border: 1.5px solid #e4eaf2;
-            border-radius: 1rem;
+            border-radius: .9rem;
             background: #fff;
             cursor: pointer;
             transition: border-color .2s ease, background-color .2s ease, box-shadow .2s ease;
@@ -200,6 +198,7 @@
             border-style: dashed;
             background: #f8fafc;
             opacity: .78;
+            grid-template-columns: auto minmax(0, 1fr);
         }
 
         .checkout-method-card--proximamente:hover {
@@ -209,8 +208,9 @@
 
         .checkout-method-card__badge {
             position: absolute;
-            top: .55rem;
-            right: .55rem;
+            top: 50%;
+            right: 1rem;
+            transform: translateY(-50%);
             font-size: .64rem;
             font-weight: 700;
             letter-spacing: .04em;
@@ -221,12 +221,24 @@
             padding: .12rem .5rem;
         }
 
+        .checkout-method-card__badge--rapido {
+            color: #0a5c36;
+            background: #e3f6ec;
+        }
+
+        /* Cualquier etiqueta del lado derecho necesita aire: si no, se come el
+           subtítulo del método en pantallas angostas. */
+        .checkout-method-card:has(.checkout-method-card__badge) {
+            padding-right: 8.5rem;
+        }
+
         .checkout-method-card .form-check-input {
-            position: absolute;
-            top: .6rem;
-            right: .6rem;
+            grid-column: 1;
+            grid-row: 1 / span 2;
             float: none;
             margin: 0;
+            width: 1.2rem;
+            height: 1.2rem;
         }
 
         .checkout-method-card:hover {
@@ -236,7 +248,7 @@
         .checkout-method-card:has(input:checked) {
             border-color: #0d6efd;
             background-color: #f4f8ff;
-            box-shadow: 0 .5rem 1.25rem rgba(13, 110, 253, .14);
+            box-shadow: inset .3rem 0 0 #0d6efd, 0 .5rem 1.25rem rgba(13, 110, 253, .14);
         }
 
         .checkout-method-card:has(input:focus-visible) {
@@ -247,9 +259,10 @@
         .checkout-method-card__icon {
             display: grid;
             place-items: center;
+            grid-column: 2;
+            grid-row: 1 / span 2;
             width: 44px;
             height: 44px;
-            margin-bottom: .35rem;
             border-radius: .85rem;
             background: var(--brand, #0d6efd);
             color: #fff;
@@ -270,12 +283,26 @@
         }
 
         .checkout-method-card__title {
+            grid-column: 3;
+            grid-row: 1;
             font-weight: 700;
         }
 
         .checkout-method-card__hint {
+            grid-column: 3;
+            grid-row: 2;
             font-size: .75rem;
             color: #6c757d;
+        }
+
+        /* La fila bloqueada no tiene radio: el logo pasa al primer espacio. */
+        .checkout-method-card--proximamente .checkout-method-card__icon {
+            grid-column: 1;
+        }
+
+        .checkout-method-card--proximamente .checkout-method-card__title,
+        .checkout-method-card--proximamente .checkout-method-card__hint {
+            grid-column: 2;
         }
 
         .checkout-account {
@@ -318,7 +345,10 @@
             color: #fff !important;
         }
 
+        /* El panel de datos es el que decide si el QR va al lado: se consulta su
+           propio ancho porque el carrito se angosta antes que la ventana. */
         .checkout-qr-preview {
+            container-type: inline-size;
             border: 1px solid #dbe5f3;
             border-radius: 1rem;
             background: linear-gradient(145deg, #f8fbff, #fff);
@@ -402,6 +432,181 @@
             display: block;
             font-size: .75rem;
             color: #6c757d;
+        }
+
+        /* El QR sube como foto de pantalla: si la columna se deja en `auto`, el
+           navegador la mide por el ancho natural de la foto (900px) y le roba
+           todo el sitio al texto, que queda a una letra por línea. */
+        .checkout-quickpay {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
+            align-items: center;
+        }
+
+        /* 600px es lo mínimo para que el texto respire al lado del QR de 280px;
+           por debajo, el QR sube arriba y todo queda a una columna. */
+        @container (min-width: 600px) {
+            .checkout-quickpay {
+                grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
+            }
+        }
+
+        @container (max-width: 599.98px) {
+            .checkout-quickpay__qr,
+            .checkout-quickpay__aside {
+                order: -1;
+            }
+        }
+
+        .checkout-quickpay__titulo {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--color-primary, #0d6efd);
+            margin: 0;
+        }
+
+        .checkout-quickpay__guia {
+            font-size: .9rem;
+            color: #495057;
+            margin: .35rem 0 0;
+        }
+
+        .checkout-quickpay__divide {
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+            margin: .95rem 0;
+            font-size: .78rem;
+            color: #6c757d;
+        }
+
+        .checkout-quickpay__divide::before,
+        .checkout-quickpay__divide::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #e4eaf2;
+        }
+
+        .checkout-quickpay__aviso {
+            display: flex;
+            gap: .5rem;
+            align-items: flex-start;
+            padding: .6rem .75rem;
+            margin: 0 0 .9rem;
+            border: 1px solid #ffe9b3;
+            border-radius: .75rem;
+            background: #fff8e6;
+            color: #7a5b00;
+            font-size: .8rem;
+        }
+
+        .checkout-quickpay__qr {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: .5rem;
+            min-width: 0;
+        }
+
+        .checkout-quickpay__qr .checkout-qr-preview__image-wrap {
+            max-width: 100%;
+        }
+
+        /* Dentro del panel de pago las filas aprovechan todo el ancho: el tope de
+           420px era para la maqueta vieja de una sola columna. */
+        .checkout-quickpay .checkout-bcp-data {
+            max-width: none;
+        }
+
+        .checkout-quickpay__specs {
+            width: 100%;
+            max-width: 280px;
+            display: grid;
+            gap: .4rem;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            font-size: .78rem;
+            color: #495057;
+        }
+
+        .checkout-quickpay__specs li {
+            display: flex;
+            gap: .45rem;
+            align-items: baseline;
+        }
+
+        .checkout-quickpay__aside {
+            display: grid;
+            gap: .75rem;
+            justify-items: center;
+            align-content: start;
+            min-width: 0;
+        }
+
+        .checkout-quickpay__marca {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            padding: .5rem .85rem;
+            border: 1px solid #e8edf4;
+            border-radius: 999px;
+            background: #fff;
+            box-shadow: 0 .5rem 1.5rem rgba(31, 45, 61, .08);
+            font-size: .8rem;
+            color: #495057;
+        }
+
+        .checkout-quickpay__pasos {
+            width: 100%;
+            max-width: 280px;
+            display: grid;
+            gap: .6rem;
+            padding: .9rem 1rem;
+            border: 1px solid #e4eaf2;
+            border-radius: .9rem;
+            background: #fff;
+        }
+
+        .checkout-quickpay__pasos-titulo {
+            font-size: .75rem;
+            color: #6c757d;
+            margin: 0;
+        }
+
+        .checkout-quickpay__paso {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: .6rem;
+            align-items: start;
+            font-size: .8rem;
+            color: #495057;
+        }
+
+        .checkout-quickpay__paso b {
+            display: grid;
+            place-items: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            background: #eef4ff;
+            color: #174ea6;
+            font-size: .72rem;
+        }
+
+        /* El botón de siempre: si el panel de datos crece, el cliente pierde de
+           vista lo que paga, así que la orden de pago se queda pegada abajo. */
+        .checkout-cta {
+            position: sticky;
+            bottom: .75rem;
+            z-index: 5;
+            margin-top: 1rem;
+            padding: .5rem;
+            border-radius: 1.15rem;
+            background: rgba(255, 255, 255, .94);
+            box-shadow: 0 .6rem 1.6rem rgba(31, 45, 61, .16);
         }
 
         @media (max-width: 575.98px) {
@@ -651,10 +856,15 @@
 
                         @php
                             $reglasEnvio = (array) config('tienda.envio');
+                            // El umbral de envío gratis mira el subtotal ANTES del cupón:
+                            // si no, aplicar un descuento podría encarecer el pedido.
                             $envioGratis = $subtotal_acumulado >= $reglasEnvio['umbral_gratis'];
                             $costoEnvioInicial = $carritos->isNotEmpty() && ! $envioGratis
                                 ? $reglasEnvio['costo_estandar']
                                 : 0;
+                            $descuentoCupon = (float) ($cupon['descuento'] ?? 0);
+                            $porcentajeCupon = (int) ($cupon['porcentaje'] ?? 0);
+                            $totalInicial = round($subtotal_acumulado - $descuentoCupon + $costoEnvioInicial, 2);
                             // Si el envío volvió con un error, la modalidad elegida
                             // no puede reiniciarse a «envío» sin avisar al cliente.
                             $modalidadActual = old('modalidad_entrega', 'envio');
@@ -687,7 +897,7 @@
                                             <form action="{{ route('web.pedidos.pago_manual') }}" method="POST" id="checkout-form" class="mt-4" novalidate
                                                 data-initial-step="{{ $errors->hasAny(['name', 'dni', 'telefono', 'privacy_consent']) ? 1 : ($errors->hasAny(['direccion_id', 'modalidad_entrega']) ? 2 : ($errors->any() ? 3 : 1)) }}">
                                                 @csrf
-                                                <input type="hidden" name="total" id="hidden-total" value="{{ $subtotal_acumulado + $costoEnvioInicial }}">
+                                                <input type="hidden" name="total" id="hidden-total" value="{{ $totalInicial }}">
                                                 <input type="hidden" name="shipping_option" id="hidden-shipping-option" value="{{ $costoEnvioInicial === 0 ? 'free' : 'standard' }}">
 
                                                 <div class="card border-0 shadow-sm rounded-4">
@@ -971,7 +1181,7 @@
                                                             <p class="fw-semibold mb-2">¿Deseas pagar online o con efectivo/transferencia?</p>
                                                             <p class="text-muted small mb-4">Con Yape o Plin transfiere siempre el total exacto, verifica el titular y adjunta tu comprobante al crear el pedido. Con tarjeta el pago lo confirma Mercado Pago solo, sin comprobantes.</p>
                                                             <div class="mb-4" id="payment-options-container" role="radiogroup" aria-labelledby="payment-method-label">
-                                                                <span class="summary-label fw-semibold d-block mb-2" id="payment-method-label">Elige cómo pagar</span>
+                                                                <span class="summary-label fw-semibold d-block mb-2" id="payment-method-label">Elige un medio de pago</span>
                                                                 @php $metodoSolicitado = old('metodo_pago'); @endphp
                                                                 <div class="checkout-method-grid">
                                                                     @if ($yapeDisponible)
@@ -1001,9 +1211,10 @@
                                                                     @if ($tarjetaDisponible)
                                                                         <label for="pago_tarjeta" class="checkout-method-card">
                                                                             <input class="form-check-input" type="radio" name="metodo_pago" id="pago_tarjeta" value="tarjeta" @checked($metodoSolicitado === 'tarjeta')>
+                                                                            <span class="checkout-method-card__badge checkout-method-card__badge--rapido">El más rápido</span>
                                                                             <span class="checkout-method-card__icon checkout-method-card__icon--marca" aria-hidden="true"><img src="{{ asset('assets/img/pagos/visa.svg') }}" width="31" height="22" alt=""></span>
-                                                                            <span class="checkout-method-card__title">Tarjeta Visa</span>
-                                                                            <small class="checkout-method-card__hint">Débito o crédito · Confirmación automática</small>
+                                                                            <span class="checkout-method-card__title">Tarjeta Visa · crédito o débito</span>
+                                                                            <small class="checkout-method-card__hint">Confirmación automática por Mercado Pago</small>
                                                                         </label>
                                                                     @elseif ($tarjetaProximamente)
                                                                         <div class="checkout-method-card checkout-method-card--proximamente" aria-disabled="true">
@@ -1025,24 +1236,20 @@
                                                                         </div>
                                                                         @if ($yapeDisponible)
                                                                             <div data-checkout-qr="yape" @if ($metodoSolicitado !== 'yape') hidden @endif>
-                                                                                <div class="checkout-account">
-                                                                                    <div class="text-center">
-                                                                                        <h3 class="h6 fw-bold mb-2">Escanea el QR de Yape</h3>
-                                                                                        <button type="button" class="checkout-qr-preview__image-wrap" data-bs-toggle="modal" data-bs-target="#qrZoomModal" data-qr-zoom="Yape" aria-label="Agrandar el código QR de Yape">
-                                                                                            <img class="checkout-qr-preview__image" src="{{ asset('storage/'.ltrim($ajuste->web_yape_qr, '/')) }}"
-                                                                                                alt="Código QR oficial de Yape de {{ $ajuste->web_yape_titular }}" loading="eager">
-                                                                                        </button>
-                                                                                        <p class="small text-muted mt-2 mb-0">Abre Yape y escanea este QR.<br>
-                                                                                            <span class="fw-semibold text-body">¿No lo puedes leer? Tócalo para agrandarlo.</span>
+                                                                                <div class="checkout-quickpay">
+                                                                                    <div>
+                                                                                        <p class="checkout-quickpay__titulo">Paga más rápido</p>
+                                                                                        <p class="checkout-quickpay__guia">Escanea este QR con la billetera electrónica de tu banco, desde la app <strong>Yape</strong>.</p>
+                                                                                        <div class="checkout-quickpay__divide">o verifica estos datos antes de pagar</div>
+                                                                                        <p class="checkout-quickpay__aviso">
+                                                                                            <i class="bi bi-shield-check" aria-hidden="true"></i>
+                                                                                            <span>Comprueba que el nombre del destinatario coincida antes de pagar.</span>
                                                                                         </p>
-                                                                                    </div>
-                                                                                    <div class="checkout-account__data">
-                                                                                        <p class="small text-muted mb-3">Comprueba que el nombre del destinatario coincida antes de pagar.</p>
                                                                                         <div class="checkout-bcp-data">
                                                                                             <div class="checkout-bcp-data__row">
                                                                                                 <span class="text-start">
                                                                                                     <span class="checkout-bcp-data__label">Total exacto</span>
-                                                                                                    <strong class="checkout-qr-preview__amount"><span data-checkout-qr-total>{{ \App\Models\Ajuste::formatear_precio($subtotal_acumulado + $costoEnvioInicial) }}</span></strong>
+                                                                                                    <strong class="checkout-qr-preview__amount"><span data-checkout-qr-total>{{ \App\Models\Ajuste::formatear_precio($totalInicial) }}</span></strong>
                                                                                                 </span>
                                                                                             </div>
                                                                                             <div class="checkout-bcp-data__row">
@@ -1051,39 +1258,34 @@
                                                                                                     <strong>{{ $ajuste->web_yape_titular }}</strong>
                                                                                                 </span>
                                                                                             </div>
-                                                                                            <div class="checkout-bcp-data__row">
-                                                                                                <span class="text-start">
-                                                                                                    <span class="checkout-bcp-data__label">Número: <strong>{{ $ajuste->web_yape_numero }}</strong></span>
-                                                                                                </span>
-                                                                                                <button type="button" class="btn btn-sm btn-outline-primary" data-copy-payment-number="{{ $ajuste->web_yape_numero }}" aria-label="Copiar número de Yape">
-                                                                                                    <i class="bi bi-copy" aria-hidden="true"></i><span class="visually-hidden">Copiar</span>
-                                                                                                </button>
-                                                                                            </div>
                                                                                         </div>
+                                                                                    </div>
+                                                                                    <div class="checkout-quickpay__qr">
+                                                                                        <button type="button" class="checkout-qr-preview__image-wrap" data-bs-toggle="modal" data-bs-target="#qrZoomModal" data-qr-zoom="Yape" aria-label="Agrandar el código QR de Yape">
+                                                                                            <img class="checkout-qr-preview__image" src="{{ asset('storage/'.ltrim($ajuste->web_yape_qr, '/')) }}"
+                                                                                                alt="Código QR oficial de Yape de {{ $ajuste->web_yape_titular }}" loading="eager">
+                                                                                        </button>
+                                                                                        <p class="small text-muted mb-0">¿No lo puedes leer? Tócalo para agrandarlo.</p>
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
                                                                         @endif
                                                                         @if ($plinDisponible)
                                                                             <div data-checkout-qr="plin" @if ($metodoSolicitado !== 'plin') hidden @endif>
-                                                                                <div class="checkout-account">
-                                                                                    <div class="text-center">
-                                                                                        <h3 class="h6 fw-bold mb-2">Escanea el QR de Plin</h3>
-                                                                                        <button type="button" class="checkout-qr-preview__image-wrap" data-bs-toggle="modal" data-bs-target="#qrZoomModal" data-qr-zoom="Plin" aria-label="Agrandar el código QR de Plin">
-                                                                                            <img class="checkout-qr-preview__image" src="{{ asset('storage/'.ltrim($ajuste->web_plin_qr, '/')) }}"
-                                                                                                alt="Código QR oficial de Plin de {{ $ajuste->web_plin_titular }}" loading="eager">
-                                                                                        </button>
-                                                                                        <p class="small text-muted mt-2 mb-0">Abre Plin y escanea este QR.<br>
-                                                                                            <span class="fw-semibold text-body">¿No lo puedes leer? Tócalo para agrandarlo.</span>
+                                                                                <div class="checkout-quickpay">
+                                                                                    <div>
+                                                                                        <p class="checkout-quickpay__titulo">Paga más rápido</p>
+                                                                                        <p class="checkout-quickpay__guia">Escanea este QR con la billetera electrónica de tu banco, desde la app <strong>Plin</strong>.</p>
+                                                                                        <div class="checkout-quickpay__divide">o verifica estos datos antes de pagar</div>
+                                                                                        <p class="checkout-quickpay__aviso">
+                                                                                            <i class="bi bi-shield-check" aria-hidden="true"></i>
+                                                                                            <span>Comprueba que el nombre del destinatario coincida antes de pagar.</span>
                                                                                         </p>
-                                                                                    </div>
-                                                                                    <div class="checkout-account__data">
-                                                                                        <p class="small text-muted mb-3">Comprueba que el nombre del destinatario coincida antes de pagar.</p>
                                                                                         <div class="checkout-bcp-data">
                                                                                             <div class="checkout-bcp-data__row">
                                                                                                 <span class="text-start">
                                                                                                     <span class="checkout-bcp-data__label">Total exacto</span>
-                                                                                                    <strong class="checkout-qr-preview__amount"><span data-checkout-qr-total>{{ \App\Models\Ajuste::formatear_precio($subtotal_acumulado + $costoEnvioInicial) }}</span></strong>
+                                                                                                    <strong class="checkout-qr-preview__amount"><span data-checkout-qr-total>{{ \App\Models\Ajuste::formatear_precio($totalInicial) }}</span></strong>
                                                                                                 </span>
                                                                                             </div>
                                                                                             <div class="checkout-bcp-data__row">
@@ -1092,15 +1294,14 @@
                                                                                                     <strong>{{ $ajuste->web_plin_titular }}</strong>
                                                                                                 </span>
                                                                                             </div>
-                                                                                            <div class="checkout-bcp-data__row">
-                                                                                                <span class="text-start">
-                                                                                                    <span class="checkout-bcp-data__label">Número: <strong>{{ $ajuste->web_plin_numero }}</strong></span>
-                                                                                                </span>
-                                                                                                <button type="button" class="btn btn-sm btn-outline-primary" data-copy-payment-number="{{ $ajuste->web_plin_numero }}" aria-label="Copiar número de Plin">
-                                                                                                    <i class="bi bi-copy" aria-hidden="true"></i><span class="visually-hidden">Copiar</span>
-                                                                                                </button>
-                                                                                            </div>
                                                                                         </div>
+                                                                                    </div>
+                                                                                    <div class="checkout-quickpay__qr">
+                                                                                        <button type="button" class="checkout-qr-preview__image-wrap" data-bs-toggle="modal" data-bs-target="#qrZoomModal" data-qr-zoom="Plin" aria-label="Agrandar el código QR de Plin">
+                                                                                            <img class="checkout-qr-preview__image" src="{{ asset('storage/'.ltrim($ajuste->web_plin_qr, '/')) }}"
+                                                                                                alt="Código QR oficial de Plin de {{ $ajuste->web_plin_titular }}" loading="eager">
+                                                                                        </button>
+                                                                                        <p class="small text-muted mb-0">¿No lo puedes leer? Tócalo para agrandarlo.</p>
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
@@ -1117,7 +1318,7 @@
                                                                                             <div class="checkout-bcp-data__row">
                                                                                                 <span class="text-start">
                                                                                                     <span class="checkout-bcp-data__label">Total exacto</span>
-                                                                                                    <strong class="checkout-qr-preview__amount"><span data-checkout-qr-total>{{ \App\Models\Ajuste::formatear_precio($subtotal_acumulado + $costoEnvioInicial) }}</span></strong>
+                                                                                                    <strong class="checkout-qr-preview__amount"><span data-checkout-qr-total>{{ \App\Models\Ajuste::formatear_precio($totalInicial) }}</span></strong>
                                                                                                 </span>
                                                                                             </div>
                                                                                             <div class="checkout-bcp-data__row">
@@ -1156,30 +1357,46 @@
                             dentro son los cuatro campos. Un número escrito en esta página
                             obliga a la tienda a auditar PCI DSS; el dato lo pide Mercado Pago. --}}
                                                                             <div data-checkout-qr="tarjeta" @if ($metodoSolicitado !== 'tarjeta') hidden @endif>
-                                                                                <div class="checkout-account">
-                                                                                    <div class="text-center text-md-start">
-                                                                                        <h3 class="h6 fw-bold mb-2"><i class="bi bi-credit-card me-1" aria-hidden="true"></i>Pago con tarjeta Visa</h3>
-                                                                                        <p class="small text-muted mb-3">Completa el pago en la pantalla segura de Mercado Pago. Aquí solo eliges el método: la tienda no ve ni guarda el número, la fecha ni el CVV de tu tarjeta.</p>
-                                                                                        <span class="checkout-qr-preview__amount">Total a pagar: <span data-checkout-qr-total>{{ \App\Models\Ajuste::formatear_precio($subtotal_acumulado + $costoEnvioInicial) }}</span></span>
-                                                                                        <span class="d-block small text-muted mt-2">Al presionar el botón se abre Mercado Pago en esta misma pestaña. El enlace vence en {{ $mercadoPago->minutosVigencia() }} minutos; si se te pasa el tiempo, puedes abrirlo otra vez desde tu pedido.</span>
+                                                                                <div class="checkout-quickpay">
+                                                                                    <div>
+                                                                                        <p class="checkout-quickpay__titulo">Paga con tu tarjeta</p>
+                                                                                        <p class="checkout-quickpay__guia">Al presionar el botón se abre Mercado Pago en esta misma pestaña: allí escribes los datos de tu tarjeta en la pantalla segura de la pasarela.</p>
+                                                                                        <div class="checkout-quickpay__divide">aquí no se escribe ninguna tarjeta</div>
+                                                                                        <p class="checkout-quickpay__aviso">
+                                                                                            <i class="bi bi-shield-check" aria-hidden="true"></i>
+                                                                                            <span>La tienda no ve ni guarda el número, la fecha ni el CVV de tu tarjeta.</span>
+                                                                                        </p>
+                                                                                        <div class="checkout-bcp-data">
+                                                                                            <div class="checkout-bcp-data__row">
+                                                                                                <span class="text-start">
+                                                                                                    <span class="checkout-bcp-data__label">Total a pagar</span>
+                                                                                                    <strong class="checkout-qr-preview__amount"><span data-checkout-qr-total>{{ \App\Models\Ajuste::formatear_precio($totalInicial) }}</span></strong>
+                                                                                                </span>
+                                                                                            </div>
+                                                                                            <div class="checkout-bcp-data__row">
+                                                                                                <span class="text-start">
+                                                                                                    <span class="checkout-bcp-data__label">Si la tarjeta es rechazada</span>
+                                                                                                    <strong>Tu pedido queda guardado y puedes reintentar</strong>
+                                                                                                    <small class="text-muted d-block">También puedes elegir Yape o Plin desde tu pedido.</small>
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        </div>
                                                                                     </div>
-                                                                                    <div class="checkout-account__data" style="max-width: 420px;">
-                                                                                        <div class="border rounded-3 p-3 mb-2 text-start bg-white">
-                                                                                            <span class="checkout-bcp-data__label">Tarjetas aceptadas</span>
-                                                                                            <strong class="d-block">Visa (débito o crédito)</strong>
-                                                                                            <small class="text-muted">Mercado Pago muestra además otras tarjetas y medios disponibles.</small>
+                                                                                    <div class="checkout-quickpay__aside">
+                                                                                        <span class="checkout-quickpay__marca">
+                                                                                            <img src="{{ asset('assets/img/pagos/visa.svg') }}" width="31" height="22" alt="Visa">
+                                                                                            <span><i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Pago seguro</span>
+                                                                                        </span>
+                                                                                        <div class="checkout-quickpay__pasos">
+                                                                                            <p class="checkout-quickpay__pasos-titulo">Así funciona el pago con tarjeta</p>
+                                                                                            <p class="checkout-quickpay__paso"><b>1</b><span>Presionas el botón y te llevamos a Mercado Pago.</span></p>
+                                                                                            <p class="checkout-quickpay__paso"><b>2</b><span>Allí escribes tu tarjeta: la tienda nunca la ve.</span></p>
+                                                                                            <p class="checkout-quickpay__paso"><b>3</b><span>Si la aprueban, el pedido queda pagado al instante.</span></p>
                                                                                         </div>
-                                                                                        <div class="border rounded-3 p-3 text-start bg-white">
-                                                                                            <span class="checkout-bcp-data__label">Si la tarjeta es rechazada</span>
-                                                                                            <strong class="d-block">Tu pedido queda guardado y puedes reintentar</strong>
-                                                                                            <small class="text-muted">También puedes elegir Yape o Plin desde tu pedido.</small>
-                                                                                        </div>
-                                                                                        <div class="d-flex align-items-center justify-content-between gap-2 mt-3">
-                                                                                            <span class="d-inline-flex align-items-center gap-2">
-                                                                                                <img src="{{ asset('assets/img/pagos/visa.svg') }}" width="31" height="22" alt="Visa">
-                                                                                            </span>
-                                                                                            <span class="small text-muted"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i>Pago seguro</span>
-                                                                                        </div>
+                                                                                        <ul class="checkout-quickpay__specs">
+                                                                                            <li><i class="bi bi-credit-card" aria-hidden="true"></i><span>Tarjetas aceptadas: <strong>Visa</strong> débito o crédito.</span></li>
+                                                                                            <li><i class="bi bi-clock" aria-hidden="true"></i><span>El enlace vence en {{ $mercadoPago->minutosVigencia() }} minutos y puedes abrirlo otra vez desde tu pedido.</span></li>
+                                                                                        </ul>
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
@@ -1204,25 +1421,25 @@
                                                             </div>
                                                             </div>
 
-                                                            <div class="mt-4">
-                                                                @php
-                                                                    // Sin JavaScript este botón es el único que ve el cliente: su texto
-                                                                    // debe prometer exactamente lo que pasará con el método elegido.
-                                                                    $montoCheckout = \App\Models\Ajuste::formatear_precio($subtotal_acumulado + $costoEnvioInicial);
-                                                                    $etiquetaInicial = match ($metodoSolicitado) {
-                                                                        'tarjeta' => '<i class="bi bi-credit-card me-1"></i>Pagar ' . $montoCheckout . ' con tarjeta',
-                                                                        'yape', 'plin', 'bcp' => '<i class="bi bi-arrow-repeat me-1"></i>Crear pedido y subir comprobante',
-                                                                        default => '<i class="bi bi-lock me-1"></i>Elige un método de pago',
-                                                                    };
-                                                                @endphp
+                                                            @php
+                                                                // Sin JavaScript este botón es el único que ve el cliente: su texto
+                                                                // debe prometer exactamente lo que pasará con el método elegido.
+                                                                $montoCheckout = \App\Models\Ajuste::formatear_precio($totalInicial);
+                                                                $etiquetaInicial = match ($metodoSolicitado) {
+                                                                    'tarjeta' => '<i class="bi bi-credit-card me-1"></i>Pagar ' . $montoCheckout . ' con tarjeta',
+                                                                    'yape', 'plin', 'bcp' => '<i class="bi bi-arrow-repeat me-1"></i>Crear pedido y subir comprobante',
+                                                                    default => '<i class="bi bi-lock me-1"></i>Elige un método de pago',
+                                                                };
+                                                            @endphp
+                                                            <div class="checkout-cta">
                                                                 <button type="submit" class="btn btn-primary btn-lg rounded-pill py-3 w-100" id="btn-submit-checkout"
                                                                     @disabled(! $yapeDisponible && ! $plinDisponible && ! $bcpDisponible && ! $tarjetaDisponible)>
                                                                     {!! $etiquetaInicial !!}
                                                                 </button>
-                                                                <button type="button" class="btn btn-link text-muted w-100 mt-1" data-checkout-previous="2">
-                                                                    <i class="bi bi-arrow-left me-1"></i>Volver a mis datos
-                                                                </button>
                                                             </div>
+                                                            <button type="button" class="btn btn-link text-muted w-100 mt-1" data-checkout-previous="2">
+                                                                <i class="bi bi-arrow-left me-1"></i>Volver a mis datos
+                                                            </button>
 
                                                             <p class="small text-muted text-center mt-3 mb-0">
                                                                 <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>Tu pedido queda guardado aunque un pago falle; nunca se te cobra dos veces.
@@ -1267,6 +1484,30 @@
                             @endforeach
                         </div>
 
+                        <div class="coupon-box border rounded-3 p-2 mb-3">
+                            <label for="codigo-cupon" class="form-label fw-semibold small mb-1">
+                                <i class="bi bi-ticket-perforated me-1 text-primary"></i>Cupón de descuento
+                            </label>
+                            <form action="{{ route('web.carrito.cupon') }}" method="POST" class="d-flex gap-2" id="form-cupon">
+                                @csrf
+                                <input type="text" name="codigo" id="codigo-cupon" value="{{ old('codigo_cupon', $cupon['codigo'] ?? '') }}"
+                                    class="form-control form-control-sm text-uppercase @error('codigo') is-invalid @enderror"
+                                    placeholder="Escribe el código" maxlength="30" autocomplete="off" aria-describedby="cupon-help">
+                                <button type="submit" class="btn btn-sm btn-outline-primary rounded-pill px-3 text-nowrap">
+                                    {{ ($cupon['codigo'] ?? null) ? 'Actualizar' : 'Aplicar' }}
+                                </button>
+                                @if (! empty($cupon['codigo']))
+                                    <button type="submit" class="btn btn-sm btn-link text-muted text-nowrap" name="quitar" value="1"
+                                        aria-label="Quitar el cupón aplicado" title="Quitar el cupón">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                @endif
+                            </form>
+                            <div id="cupon-help" class="form-text">
+                                El descuento baja solo del precio de los productos; el envío se calcula igual.
+                            </div>
+                        </div>
+
                         <div class="summary-item {{ $subtotal_original_acumulado > $subtotal_acumulado ? '' : 'd-none' }}" id="subtotal-original-container">
                             <span class="summary-label">Antes de descuentos</span>
                             <span class="summary-value" id="subtotal-original-display">{{ \App\Models\Ajuste::formatear_precio($subtotal_original_acumulado) }}</span>
@@ -1280,6 +1521,14 @@
                         <div class="summary-item bg-light p-2 rounded-2 my-2">
                             <span class="summary-label fw-bold">Subtotal</span>
                             <span class="summary-value fw-bold text-dark" id="subtotal-display">{{ \App\Models\Ajuste::formatear_precio($subtotal_acumulado) }}</span>
+                        </div>
+
+                        <div class="summary-item {{ empty($cupon['codigo']) || $descuentoCupon <= 0 ? 'd-none' : '' }}" id="cupon-container">
+                            <span class="summary-label text-danger" id="cupon-label">
+                                Descuento (<span id="cupon-codigo">{{ $cupon['codigo'] }}</span>
+                                <span id="cupon-porcentaje">−{{ $porcentajeCupon }}%</span>)
+                            </span>
+                            <span class="summary-value text-danger" id="cupon-display">-{{ \App\Models\Ajuste::formatear_precio($descuentoCupon) }}</span>
                         </div>
 
                         <div class="summary-item shipping-item">
@@ -1300,7 +1549,7 @@
                         <p class="small mb-2 text-muted d-none" id="delivery-point-line" aria-live="polite"></p>
                         <div class="summary-total border-top pt-3" aria-live="polite">
                             <span class="summary-label">Total a pagar</span>
-                            <span class="summary-value" id="total-display">{{ \App\Models\Ajuste::formatear_precio($subtotal_acumulado + $costoEnvioInicial) }}</span>
+                            <span class="summary-value" id="total-display">{{ \App\Models\Ajuste::formatear_precio($totalInicial) }}</span>
                         </div>
 
                         <div class="alert alert-success text-center py-2 px-3 my-3 fw-bold rounded-3 {{ $subtotal_original_acumulado > $subtotal_acumulado ? '' : 'd-none' }}" id="saving-badge" style="font-size: 13px;">
@@ -1815,6 +2064,10 @@
 
                 // Pricing parameters
                 let subtotalAcumulado = parseFloat("{{ $subtotal_acumulado }}");
+                // El porcentaje viene del servidor, nunca del cliente: el monto real
+                // se recalcula otra vez al crear el pedido.
+                let cuponCodigo = "{{ $cupon['codigo'] ?? '' }}";
+                let cuponPorcentaje = parseInt("{{ $cupon['porcentaje'] ?? 0 }}", 10) || 0;
                 const divisaSimbolo = "{{ $ajuste->moneda_simbolo ?? 'S/.' }}";
                 const divisaPosicion = "{{ $ajuste->moneda_posicion ?? 'antes' }}";
                 const divisaDecimales = parseInt("{{ $ajuste->moneda_decimales ?? 2 }}");
@@ -1838,6 +2091,10 @@
                 const shippingLabel = document.getElementById('shipping-label');
                 const shippingMessage = document.getElementById('shipping-message');
                 const totalDisplay = document.getElementById('total-display');
+                const cuponContainer = document.getElementById('cupon-container');
+                const cuponDisplay = document.getElementById('cupon-display');
+                const cuponCodigoLabel = document.getElementById('cupon-codigo');
+                const cuponPorcentajeLabel = document.getElementById('cupon-porcentaje');
                 const shippingOptionsContainer = document.getElementById('shipping-options-container');
                 const shippingAddressContainer = document.getElementById('shipping-address-container');
                 const provinciaNote = document.getElementById('provincia-note');
@@ -2020,6 +2277,26 @@
                     linea.classList.remove('d-none');
                 }
 
+                function descuentoCuponActual(subtotal, porcentaje) {
+                    if (!porcentaje) return 0;
+                    const base = Math.max(0, subtotal);
+                    const redondeado = (monto) => Math.round((monto + Number.EPSILON) * 100) / 100;
+                    return Math.min(redondeado(base * porcentaje / 100), redondeado(base));
+                }
+
+                function recalcularCupon() {
+                    const descuento = descuentoCuponActual(subtotalAcumulado, cuponPorcentaje);
+
+                    if (cuponContainer) {
+                        cuponContainer.classList.toggle('d-none', !cuponCodigo || descuento <= 0);
+                    }
+                    if (cuponCodigoLabel) cuponCodigoLabel.textContent = cuponCodigo;
+                    if (cuponPorcentajeLabel) cuponPorcentajeLabel.textContent = `−${cuponPorcentaje}%`;
+                    if (cuponDisplay) cuponDisplay.textContent = '-' + formatearPrecioJS(descuento);
+
+                    return descuento;
+                }
+
                 function recalculateCart() {
                     if (!checkoutForm) return;
 
@@ -2119,7 +2396,8 @@
                         }
                     }
 
-                    const total = subtotalAcumulado + shippingCost;
+                    const descuento = recalcularCupon();
+                    const total = Math.max(0, subtotalAcumulado - descuento + shippingCost);
                     if (totalDisplay) {
                         totalDisplay.innerText = formatearPrecioJS(total);
                     }
@@ -2186,6 +2464,11 @@
                         if (cartUpdateInProgress) return;
 
                         cartUpdateInProgress = true;
+                        // El FormData se arma ANTES de desactivar nada: un input
+                        // deshabilitado no es enviable y el navegador lo descarta,
+                        // con lo que el carrito llegaría vacío al servidor.
+                        const formData = new FormData(this);
+
                         if (updateCartButton) {
                             updateCartButton.disabled = true;
                             updateCartButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Guardando...';
@@ -2193,8 +2476,6 @@
                         document.querySelectorAll('.quantity-input, .quantity-btn').forEach(control => {
                             control.disabled = true;
                         });
-
-                        const formData = new FormData(this);
 
                         fetch(this.action, {
                             method: 'POST',
@@ -2311,6 +2592,8 @@
 
                                 // Update the JS global variable
                                 subtotalAcumulado = data.subtotal_acumulado;
+                                cuponCodigo = data.cupon?.codigo ?? '';
+                                cuponPorcentaje = data.cupon?.porcentaje ?? 0;
 
                                 // Call recalculateCart to update standard/express/free shipping and total to pay
                                 recalculateCart();

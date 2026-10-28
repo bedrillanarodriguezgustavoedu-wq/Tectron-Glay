@@ -36,7 +36,7 @@ class MercadoPagoCheckoutTest extends TestCase
         $this->crearTablasDePagos();
     }
 
-    private function configurarPasarela(bool $activaEnTienda = true, bool $verificada = true): void
+    private function configurarPasarela(bool $activaEnTienda = true, bool $verificada = true, string $urlBase = 'https://tienda.example'): void
     {
         config([
             'services.mercadopago.enabled' => true,
@@ -44,6 +44,7 @@ class MercadoPagoCheckoutTest extends TestCase
             'services.mercadopago.webhook_secret' => null,
             'services.mercadopago.currency' => 'PEN',
             'services.mercadopago.checkout_ttl_minutes' => 30,
+            'services.mercadopago.url_base' => $urlBase,
         ]);
 
         DB::table('ajustes')->update(['web_mercadopago_activa' => $activaEnTienda ? 1 : 0]);
@@ -346,6 +347,32 @@ class MercadoPagoCheckoutTest extends TestCase
         $this->assertSame($orden->id, (int) $intento->pedido_id);
         $this->assertSame(self::SANDBOX_URL, $intento->checkout_url);
         $this->assertNotNull($intento->expira_at);
+    }
+
+    public function test_a_local_url_base_opens_the_checkout_without_return_urls(): void
+    {
+        $usuario = $this->crearClienteConCarrito();
+        $this->configurarPasarela(urlBase: 'http://127.0.0.1:8000');
+        $this->simularPreferencia();
+
+        $this->actingAs($usuario)
+            ->post(route('web.pedidos.pago_manual'), $this->datosCheckout('tarjeta'))
+            ->assertRedirect(self::SANDBOX_URL);
+
+        // Mercado Pago devuelve 400 «invalid_auto_return» si se le envía una URL de
+        // retorno local: el checkout del cliente se abriría solo cuando la tienda ya
+        // tenga dominio público.
+        Http::assertSent(function ($request) {
+            if ($request->url() !== 'https://api.mercadopago.com/checkout/preferences') {
+                return true;
+            }
+
+            $datos = json_decode($request->body(), true);
+
+            return ! array_key_exists('back_urls', $datos)
+                && ! array_key_exists('auto_return', $datos)
+                && ! array_key_exists('notification_url', $datos);
+        });
     }
 
     public function test_the_delivery_cost_follows_the_store_rules_when_the_order_is_created(): void
@@ -731,6 +758,86 @@ class MercadoPagoCheckoutTest extends TestCase
             ->get(route('web.pagos.tarjeta.retorno', ['referencia' => $intento->referencia_externa]))
             ->assertRedirect(route('web.pedidos.confirmacion', $orden->id));
 
+        $this->assertSame('Pagado', $orden->fresh()->estado_pago);
+    }
+
+    /**
+     * Mercado Pago redirige a la URL de `failure` cuando el cobro no pasó. Hasta
+     * aquí eso se ignoraba: el intento se quedaba «esperando pago» y el panel lo
+     * mostraba como un cliente a punto de pagar.
+     */
+    public function test_a_declined_return_closes_the_attempt_without_touching_the_payment(): void
+    {
+        [$orden, $intento] = $this->crearPedidoConTarjeta();
+        $usuario = User::where('galy_user_id', 42)->sole();
+
+        Http::fake([
+            'api.mercadopago.com/v1/payments/search*' => Http::response(['results' => []]),
+        ]);
+
+        $respuesta = $this->actingAs($usuario)
+            ->get(route('web.pagos.tarjeta.retorno', [
+                'referencia' => $intento->referencia_externa,
+                'estado' => 'failure',
+            ]));
+
+        $respuesta->assertRedirect(route('web.pedidos.confirmacion', $orden->id))
+            ->assertSessionHas('mensaje', 'Tu tarjeta fue rechazada y no se te cobró nada. Puedes reintentar el pago o elegir otro método.')
+            ->assertSessionHas('icono', 'warning');
+
+        $this->assertSame(IntentoPagoMercadoPago::ESTADO_FALLIDO, $intento->fresh()->estado);
+        $this->assertNotSame('Pagado', $orden->fresh()->estado_pago);
+        $this->assertNull($orden->fresh()->transaccion_id);
+    }
+
+    public function test_an_abandoned_return_leaves_the_attempt_waiting_because_nothing_declined_it(): void
+    {
+        [, $intento] = $this->crearPedidoConTarjeta();
+        $usuario = User::where('galy_user_id', 42)->sole();
+
+        Http::fake([
+            'api.mercadopago.com/v1/payments/search*' => Http::response(['results' => []]),
+        ]);
+
+        $this->actingAs($usuario)
+            ->get(route('web.pagos.tarjeta.retorno', ['referencia' => $intento->referencia_externa]))
+            ->assertSessionHas('icono', 'info');
+
+        $this->assertSame(IntentoPagoMercadoPago::ESTADO_ESPERANDO, $intento->fresh()->estado);
+    }
+
+    public function test_a_late_declined_return_never_reopens_a_confirmed_payment(): void
+    {
+        [$orden, $intento] = $this->crearPedidoConTarjeta();
+        $usuario = User::where('galy_user_id', 42)->sole();
+
+        Http::fake([
+            'api.mercadopago.com/v1/payments/search*' => Http::response([
+                'results' => [[
+                    'id' => 987654,
+                    'status' => 'approved',
+                    'transaction_amount' => 550,
+                    'currency_id' => 'PEN',
+                    'external_reference' => $intento->referencia_externa,
+                ]],
+            ]),
+        ]);
+
+        $this->actingAs($usuario)
+            ->get(route('web.pagos.tarjeta.retorno', ['referencia' => $intento->referencia_externa]));
+
+        Http::fake([
+            'api.mercadopago.com/v1/payments/search*' => Http::response(['results' => []]),
+        ]);
+
+        $this->actingAs($usuario)
+            ->get(route('web.pagos.tarjeta.retorno', [
+                'referencia' => $intento->referencia_externa,
+                'estado' => 'failure',
+            ]))
+            ->assertSessionHas('mensaje', 'Mercado Pago confirmó tu pago. El pedido ya está en proceso.');
+
+        $this->assertSame(IntentoPagoMercadoPago::ESTADO_CONFIRMADO, $intento->fresh()->estado);
         $this->assertSame('Pagado', $orden->fresh()->estado_pago);
     }
 

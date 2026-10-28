@@ -18,6 +18,7 @@ class MercadoPagoController extends Controller
     /**
      * Página a la que Mercado Pago devuelve al cliente tras pagar. El estado se
      * reconsulta en la API: los parámetros de la URL no son una prueba de pago.
+     * Solo sirven para lo contrario, para cerrar un intento que no dejó cobro.
      */
     public function retorno(Request $request)
     {
@@ -48,13 +49,27 @@ class MercadoPagoController extends Controller
                 ->with('icono', 'warning');
         }
 
-        $this->mercadoPago->aplicarPagoAlIntento($intento, $this->buscarPagoDelIntento($intento, $request->query('payment_id')));
+        $this->mercadoPago->aplicarPagoAlIntento(
+            $intento,
+            $this->buscarPagoDelIntento($intento, $request->query('payment_id')),
+            mb_strtolower(trim((string) $request->query('estado', '')))
+        );
 
-        if ($intento->pedido_id) {
-            return redirect()->route('web.pedidos.confirmacion', $intento->pedido_id);
-        }
+        $destino = $intento->pedido_id
+            ? redirect()->route('web.pedidos.confirmacion', $intento->pedido_id)
+            : redirect()->route('web.carrito.index');
 
-        return redirect()->route('web.carrito.index');
+        return match ($intento->estado) {
+            IntentoPagoMercadoPago::ESTADO_CONFIRMADO => $destino
+                ->with('mensaje', 'Mercado Pago confirmó tu pago. El pedido ya está en proceso.')
+                ->with('icono', 'success'),
+            IntentoPagoMercadoPago::ESTADO_FALLIDO => $destino
+                ->with('mensaje', 'Tu tarjeta fue rechazada y no se te cobró nada. Puedes reintentar el pago o elegir otro método.')
+                ->with('icono', 'warning'),
+            default => $destino
+                ->with('mensaje', 'Todavía no encontramos el pago en Mercado Pago. Si ya pagaste, espera unos segundos y recarga; no repitas el cobro.')
+                ->with('icono', 'info'),
+        };
     }
 
     /**

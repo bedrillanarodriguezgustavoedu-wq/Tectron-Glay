@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ajuste;
+use App\Models\Asesor;
 use App\Models\Categoria;
 use App\Models\Marca;
 use App\Models\Producto;
@@ -449,6 +450,22 @@ class ProductoController extends Controller
                 ->get();
         }
 
+        // --- 7. El asesor que atiende este rubro ---
+        // El rubro del asesor es texto libre, así que coincidir con la categoría del
+        // producto es un empujón: si nadie coincide, se muestran los dos primeros
+        // visibles y la franja sigue teniendo sentido.
+        $categoria = mb_strtolower(trim((string) $producto->categoria?->nombre));
+        $asesores_activos = Asesor::activos()->get();
+        $asesores_producto = $categoria === ''
+            ? collect()
+            : $asesores_activos->filter(function (Asesor $asesor) use ($categoria) {
+                return str_contains(mb_strtolower(trim((string) $asesor->rubro)), $categoria);
+            })->take(2);
+
+        if ($asesores_producto->isEmpty()) {
+            $asesores_producto = $asesores_activos->take(2);
+        }
+
         return view('web.detalle_producto', compact(
             'ajuste',
             'producto',
@@ -457,7 +474,8 @@ class ProductoController extends Controller
             'mejor_valorados',
             'productos_oferta',
             'mas_de_marca',
-            'vistos_recientemente'
+            'vistos_recientemente',
+            'asesores_producto'
         ));
     }
 }

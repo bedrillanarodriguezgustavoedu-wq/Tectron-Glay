@@ -3,6 +3,7 @@
 namespace App\Services\Galy;
 
 use App\Models\User;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -79,12 +80,79 @@ class GalyAccountBridge
 
     public function register(string $name, string $email, string $password): User
     {
-        $this->api->register($name, $email, $password);
+        try {
+            $this->api->register($name, $email, $password);
+        } catch (RuntimeException $exception) {
+            if (! $this->puedeCrearCuentaLocal($exception)) {
+                throw $exception;
+            }
+
+            return $this->registrarCuentaLocal($name, $email, $password);
+        }
 
         return $this->authenticate($email, $password, true);
     }
 
-    public function refreshCanonicalProfile(User $user, string $name, string $email): void
+    /**
+     * Solo cuando el panel GALY está inalcanzable. Si GALY respondió y rechazó el
+     * registro (un correo repetido, por ejemplo), crear la cuenta aquí duplicaría una
+     * identidad, así que ese caso sigue fallando igual que antes.
+     */
+    private function puedeCrearCuentaLocal(RuntimeException $exception): bool
+    {
+        return config('galy.registro_local') === true
+            && $exception->getPrevious() instanceof ConnectionException;
+    }
+
+    private function registrarCuentaLocal(string $name, string $email, string $password): User
+    {
+        $email = strtolower(trim($email));
+        $nombre = trim($name);
+
+        if (User::whereRaw('LOWER(email) = ?', [$email])->exists()) {
+            throw new RuntimeException('Ese correo ya tiene una cuenta en la tienda.');
+        }
+
+        // `usuarios` es la tabla que llena register.php y la que consulta
+        // resolveGalyUserId(): sin su fila la cuenta existiría pero el carrito no
+        // funcionaría. `Hash::make` cifra bcrypt, igual que password_hash de la API.
+        $hash = Hash::make($password);
+
+        return DB::connection('galy')->transaction(function () use ($nombre, $email, $hash) {
+            if (DB::connection('galy')->table('usuarios')
+                ->whereRaw('LOWER(email) = ?', [$email])
+                ->exists()
+            ) {
+                throw new RuntimeException('Ese correo ya está asociado a una cuenta GALY.');
+            }
+
+            $galyUserId = (int) DB::connection('galy')->table('usuarios')->insertGetId([
+                'nombre' => $nombre,
+                'email' => $email,
+                'password' => $hash,
+            ]);
+
+            $cuenta = new User;
+            $cuenta->name = $nombre;
+            $cuenta->email = $email;
+            $cuenta->password = $hash;
+            $cuenta->galy_user_id = $galyUserId;
+            $cuenta->estado = true;
+            $cuenta->save();
+
+            if (! $cuenta->hasAnyRole(['SUPER ADMIN', 'ADMINISTRADOR', 'CLIENTE'])) {
+                $cuenta->assignRole(Role::firstOrCreate(['name' => 'CLIENTE']));
+            }
+
+            Auth::login($cuenta, true);
+            request()->session()->regenerate();
+            request()->session()->put('galy_user_id', $galyUserId);
+
+            return $cuenta;
+        });
+    }
+
+    public function refreshCanonicalProfile(User $user, string $name, string $email, ?string $telefono = null): void
     {
         $galyUserId = (int) $user->galy_user_id;
         if ($galyUserId <= 0) {
@@ -101,9 +169,18 @@ class GalyAccountBridge
             throw new RuntimeException('Ese correo ya está asociado a otra cuenta GALY.');
         }
 
+        $datos = ['nombre' => $name, 'email' => $email];
+
+        if ($telefono !== null) {
+            // `usuarios.telefono` es la columna que lee la app Android: si solo se
+            // guardara en `users`, el repartidor vería un número y la app otro.
+            $datos['telefono'] = $telefono;
+            $user->telefono = $telefono;
+        }
+
         $updated = $connection->table('usuarios')
             ->where('id', $galyUserId)
-            ->update(['nombre' => $name, 'email' => $email]);
+            ->update($datos);
 
         if ($updated === 0 && ! $connection->table('usuarios')->where('id', $galyUserId)->exists()) {
             throw new RuntimeException('No se encontró la cuenta GALY vinculada.');

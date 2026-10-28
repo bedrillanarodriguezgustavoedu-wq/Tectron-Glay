@@ -34,13 +34,19 @@
                         <!-- User Info -->
                         <div class="user-info" data-aos="fade-right">
                             <div class="user-avatar">
-                                <img src="{{ asset('storage/' . $ajuste->logo) }}" alt="Profile" loading="lazy">
+                                @if (Auth::user()->ruta_foto)
+                                    <img src="{{ Auth::user()->ruta_foto }}" alt="Tu foto de perfil" loading="lazy">
+                                @elseif ($ajuste?->logo)
+                                    <img src="{{ asset('storage/' . $ajuste->logo) }}" alt="Logo de {{ $ajuste->nombre ?? 'la tienda' }}" loading="lazy">
+                                @else
+                                    <span class="account-avatar-fallback" aria-hidden="true">{{ Auth::user()->iniciales }}</span>
+                                @endif
                                 <span class="status-badge"><i class="bi bi-shield-check"></i></span>
                             </div>
                             <h4>{{ Auth::user()->name }}</h4>
                             <div class="user-status">
                                 <i class="bi bi-award"></i>
-                                <span>{{ Auth::user()->roles()->pluck('name')->implode(',') }}</span>
+                                <span>{{ Auth::user()->roles()->pluck('name')->implode(', ') ?: 'Cliente' }}</span>
                             </div>
                         </div>
 
@@ -76,6 +82,50 @@
                                 </div>
 
                                 <div class="settings-content">
+                                    <!-- Profile Photo -->
+                                    <div class="settings-section mb-4 p-3 bg-light rounded-3">
+                                        <h4 class="fw-bold text-dark mb-3"><i class="bi bi-camera text-primary me-2"></i>Foto de perfil</h4>
+                                        <div class="avatar-picker">
+                                            <div class="avatar-picker__preview" id="avatarPreview">
+                                                @if (Auth::user()->ruta_foto)
+                                                    <img src="{{ Auth::user()->ruta_foto }}" alt="Tu foto actual">
+                                                @else
+                                                    <span aria-hidden="true">{{ Auth::user()->iniciales }}</span>
+                                                @endif
+                                            </div>
+
+                                            <div class="avatar-picker__fields">
+                                                <form action="{{ url('/ajustes/foto_perfil') }}" method="POST" enctype="multipart/form-data">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <label class="form-label fw-semibold" for="fotoPerfil">Elige una imagen JPG, PNG o WEBP de hasta 2 MB</label>
+                                                    <input class="form-control" type="file" id="fotoPerfil" name="foto"
+                                                        accept="image/jpeg,image/png,image/webp" required>
+                                                    @error('foto')
+                                                        <div role="alert" class="mt-1"><small style="color: red">{{ $message }}</small></div>
+                                                    @enderror
+                                                    <div class="form-buttons mt-3">
+                                                        <button type="submit" class="btn btn-primary px-4 rounded-pill">Guardar foto</button>
+                                                    </div>
+                                                </form>
+
+                                                @if (Auth::user()->foto)
+                                                    <form class="mt-2" action="{{ url('/ajustes/foto_perfil') }}" method="POST"
+                                                        onsubmit="return confirm('¿Quieres quitar tu foto de perfil?');">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="btn btn-outline-secondary btn-sm">
+                                                            <i class="bi bi-trash3 me-1" aria-hidden="true"></i> Quitar foto
+                                                        </button>
+                                                    </form>
+                                                @endif
+                                            </div>
+                                        </div>
+                                        <p class="small text-muted mb-0 mt-2">
+                                            Se usa solo como tu avatar dentro de tu cuenta; no se publica en la tienda.
+                                        </p>
+                                    </div>
+
                                     <!-- Personal Information -->
                                     <div class="settings-section mb-4 p-3 bg-light rounded-3" data-aos="fade-up">
                                         <h4 class="fw-bold text-dark mb-3"><i class="bi bi-person-badge text-primary me-2"></i>Información personal</h4>
@@ -93,6 +143,28 @@
                                                     <label for="email" class="form-label fw-semibold">Email</label>
                                                     <input type="email" class="form-control" name="email" id="email"
                                                         value="{{ Auth::user()->email }}" required>
+                                                </div>
+
+                                                <div class="col-md-6">
+                                                    <label for="telefonoPerfil" class="form-label fw-semibold">Teléfono <span class="text-muted fw-normal">(para tus pedidos)</span></label>
+                                                    <input type="tel" class="form-control" name="telefono" id="telefonoPerfil"
+                                                        value="{{ old('telefono', Auth::user()->telefono) }}" maxlength="20"
+                                                        inputmode="tel" placeholder="ej: 987654321">
+                                                    @error('telefono')
+                                                        <div role="alert" class="mt-1"><small style="color: red">{{ $message }}</small></div>
+                                                    @enderror
+                                                    <small class="text-muted">Es el número que usa el repartidor para ubicarte; también lo ve la app GALY.</small>
+                                                </div>
+
+                                                <div class="col-md-6">
+                                                    <label for="dniPerfil" class="form-label fw-semibold">DNI <span class="text-muted fw-normal">(para la factura)</span></label>
+                                                    <input type="text" class="form-control" name="dni" id="dniPerfil"
+                                                        value="{{ old('dni', Auth::user()->dni) }}" maxlength="8"
+                                                        inputmode="numeric" pattern="\d{8}" placeholder="8 dígitos" autocomplete="off">
+                                                    @error('dni')
+                                                        <div role="alert" class="mt-1"><small style="color: red">{{ $message }}</small></div>
+                                                    @enderror
+                                                    <small class="text-muted">Opcional. Se guarda cifrado y solo se usa para emitir tu comprobante.</small>
                                                 </div>
                                             </div>
 
@@ -396,8 +468,55 @@
         </div>
     </div>
 
+    <style>
+        .avatar-picker {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .avatar-picker__preview {
+            flex: 0 0 auto;
+            display: grid;
+            place-items: center;
+            width: 96px;
+            height: 96px;
+            overflow: hidden;
+            border-radius: 50%;
+            background-color: #fff;
+            border: 1px solid rgba(0, 0, 0, .1);
+        }
+
+        .avatar-picker__preview img { width: 100%; height: 100%; object-fit: cover; }
+        .avatar-picker__preview span { font-size: 1.75rem; font-weight: 700; color: #0d6efd; }
+        .avatar-picker__fields { flex: 1 1 260px; min-width: 0; }
+    </style>
+
     <!-- JavaScript dynamic load functions -->
     <script>
+        // Vista previa local: el cliente ve qué va a subir antes de guardar.
+        // Si el navegador no lo soporta, el formulario sigue funcionando igual.
+        (function () {
+            const input = document.getElementById('fotoPerfil');
+            const preview = document.getElementById('avatarPreview');
+            if (!input || !preview) {
+                return;
+            }
+
+            input.addEventListener('change', function () {
+                const archivo = input.files && input.files[0];
+                if (!archivo || !/^image\/(jpeg|png|webp)$/.test(archivo.type)) {
+                    return;
+                }
+
+                const img = document.createElement('img');
+                img.alt = 'Vista previa de la foto elegida';
+                img.src = URL.createObjectURL(archivo);
+                preview.replaceChildren(img);
+            });
+        })();
+
         function loadDepartmentsNew() {
             const paisId = document.getElementById('pais_id_new').value;
             const deptSelect = document.getElementById('departamento_id_new');

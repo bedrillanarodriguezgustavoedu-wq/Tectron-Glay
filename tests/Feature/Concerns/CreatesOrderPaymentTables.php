@@ -47,6 +47,8 @@ trait CreatesOrderPaymentTables
             $table->unsignedBigInteger('direccion_id')->nullable();
             $table->text('nota')->nullable();
             $table->string('cliente_nombre')->nullable();
+            $table->string('cupon', 20)->nullable();
+            $table->decimal('descuento', 10, 2)->nullable();
             $table->timestamps();
         });
 

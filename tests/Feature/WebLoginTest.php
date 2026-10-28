@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Services\Galy\GalyAccountBridge;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -346,6 +347,83 @@ class WebLoginTest extends TestCase
 
         $this->assertGuest();
         $this->assertDatabaseMissing('users', ['email' => 'local-customer@example.com']);
+    }
+
+    public function test_a_customer_can_register_when_the_galy_backend_is_unreachable_and_local_accounts_are_allowed(): void
+    {
+        Http::fake(function (): void {
+            throw new ConnectionException('cURL error 7: Failed to connect');
+        });
+        config()->set('galy.registro_local', true);
+
+        $this->from(route('web.registro'))
+            ->post(route('web.crear_cuenta'), [
+                'name' => 'Cliente del Servidor',
+                'email' => 'servidor@example.com',
+                'password' => 'strong-password',
+                'password_confirmation' => 'strong-password',
+            ])
+            ->assertRedirect('/dashboard');
+
+        $user = User::where('email', 'servidor@example.com')->firstOrFail();
+        $this->assertAuthenticatedAs($user);
+        $this->assertTrue($user->hasRole('CLIENTE'));
+        $this->assertNotNull($user->galy_user_id);
+        $this->assertTrue(Hash::check('strong-password', $user->password));
+        $this->assertDatabaseHas('usuarios', ['email' => 'servidor@example.com'], 'galy');
+
+        // Lo que decide si la tienda puede vender: el carrito se arma sobre el id
+        // de GALY, así que una cuenta sin esa fila no serviría para nada.
+        $this->get(route('web.carrito.index'))->assertOk();
+    }
+
+    public function test_a_rejected_registration_is_not_retried_locally_even_with_the_switch_on(): void
+    {
+        Http::fake([
+            '*' => Http::response(['success' => false], 500),
+        ]);
+        config()->set('galy.registro_local', true);
+
+        $this->from(route('web.registro'))
+            ->post(route('web.crear_cuenta'), [
+                'name' => 'Rechazado',
+                'email' => 'rechazado@example.com',
+                'password' => 'strong-password',
+                'password_confirmation' => 'strong-password',
+            ])
+            ->assertRedirect(route('web.registro'))
+            ->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+        $this->assertDatabaseMissing('users', ['email' => 'rechazado@example.com']);
+        $this->assertDatabaseMissing('usuarios', ['email' => 'rechazado@example.com'], 'galy');
+    }
+
+    public function test_an_unreachable_backend_does_not_duplicate_an_email_that_galy_already_owns(): void
+    {
+        DB::connection('galy')->table('usuarios')->insert([
+            'nombre' => 'Dueño GALY',
+            'email' => 'debaja@example.com',
+            'password' => Hash::make('otra-contrasena'),
+        ]);
+
+        Http::fake(function (): void {
+            throw new ConnectionException('cURL error 7: Failed to connect');
+        });
+        config()->set('galy.registro_local', true);
+
+        $this->from(route('web.registro'))
+            ->post(route('web.crear_cuenta'), [
+                'name' => 'Duplicado',
+                'email' => 'debaja@example.com',
+                'password' => 'strong-password',
+                'password_confirmation' => 'strong-password',
+            ])
+            ->assertRedirect(route('web.registro'))
+            ->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+        $this->assertDatabaseMissing('users', ['email' => 'debaja@example.com']);
     }
 
     public function test_registration_rejects_duplicate_email_and_mismatched_passwords(): void

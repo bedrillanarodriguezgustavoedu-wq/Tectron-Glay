@@ -66,7 +66,7 @@ class OrdenController extends Controller
         return view('admin.pedidos.index', compact('pedidos', 'usuariosGaly'));
     }
 
-    public function pagos(Request $request)
+    public function pagos(Request $request, MercadoPagoService $mercadoPago)
     {
         $validated = $request->validate([
             'buscar' => 'nullable|string|max:100',
@@ -175,7 +175,11 @@ class OrdenController extends Controller
             ->get(['id', 'nombre', 'email'])
             ->keyBy('id');
 
-        return view('admin.pagos.index', compact('pagos', 'usuariosGaly', 'usuariosGalyPorId', 'resumenPagos', 'revision'));
+        $enlacePublico = $mercadoPago->habilitado() ? $mercadoPago->estadoEnlacePublico() : null;
+
+        return view('admin.pagos.index', compact(
+            'pagos', 'usuariosGaly', 'usuariosGalyPorId', 'resumenPagos', 'revision', 'enlacePublico'
+        ));
     }
 
     /**
@@ -439,7 +443,28 @@ class OrdenController extends Controller
             $subtotal < (float) $reglasEnvio['umbral_gratis'] => (float) $reglasEnvio['costo_estandar'],
             default => 0.0,
         };
-        $total = $subtotal + $costoEnvio;
+
+        // El cupón se vuelve a resolver contra el subtotal real de este carrito.
+        // Si el código dejó de ser válido se aborta el pedido: continuar sin el
+        // descuento cobraría más de lo que el cliente vio en pantalla.
+        $codigoCupon = (string) session('carrito_cupon', '');
+        $descuento = 0.0;
+        $cuponAplicado = null;
+        if ($codigoCupon !== '') {
+            $resuelto = \App\Models\Cupon::aplicar($codigoCupon, (float) $subtotal);
+            if ($resuelto['mensaje'] !== null) {
+                session()->forget('carrito_cupon');
+
+                return redirect()->route('web.carrito.index')
+                    ->with('mensaje', 'El cupón '.$codigoCupon.' ya no está disponible: '.$resuelto['mensaje'].' No creamos el pedido para no cobrarte un precio distinto al que viste.')
+                    ->with('icono', 'warning');
+            }
+
+            $descuento = (float) $resuelto['descuento'];
+            $cuponAplicado = $resuelto['codigo'];
+        }
+
+        $total = $subtotal - $descuento + $costoEnvio;
         if ($total <= 0) {
             return redirect()->route('web.carrito.index')
                 ->with('mensaje', 'El total del pedido debe ser mayor a cero.')
@@ -487,6 +512,8 @@ class OrdenController extends Controller
         try {
             $orden = DB::connection('galy')->transaction(function () use (
                 $carritos,
+                $cuponAplicado,
+                $descuento,
                 $direccionId,
                 $direccionTexto,
                 $firmaCarrito,
@@ -513,6 +540,8 @@ class OrdenController extends Controller
                 $orden->usuario_id = $usuarioId;
                 $orden->direccion_id = $direccionId;
                 $orden->total = $total;
+                $orden->cupon = $cuponAplicado;
+                $orden->descuento = $descuento > 0 ? $descuento : null;
                 $orden->divisa = $ajuste?->divisa ?? 'PEN';
                 $orden->estado_pago = 'Pendiente';
                 $orden->estado_orden = 'En proceso';
@@ -536,9 +565,12 @@ class OrdenController extends Controller
                 $historial->estado_nuevo = 'En proceso';
                 $historial->fecha = now()->toDateString();
                 $historial->hora = now()->toTimeString();
-                $historial->nota = $metodo === 'tarjeta'
+                $historial->nota = ($metodo === 'tarjeta'
                     ? 'Pedido creado. Esperando el pago con tarjeta en Mercado Pago.'
-                    : 'Pedido creado. Pago '.$metodo.' pendiente de transferencia y comprobante.';
+                    : 'Pedido creado. Pago '.$metodo.' pendiente de transferencia y comprobante.')
+                    .($cuponAplicado !== null
+                        ? ' Cupón '.$cuponAplicado.': '.Ajuste::formatear_precio($descuento).' de descuento.'
+                        : '');
                 $historial->usuario_id = null;
                 $historial->save();
 
@@ -586,6 +618,11 @@ class OrdenController extends Controller
                 ->with('mensaje', 'Tu carrito cambió mientras se registraba el pedido, así que no se creó ninguna compra duplicada. Revisa el carrito e inténtalo de nuevo.')
                 ->with('icono', 'warning');
         }
+
+        // El cupón ya quedó escrito en el pedido: si la sesión lo siguiera
+        // guardando, el siguiente carrito aparecería descontado sin que nadie
+        // lo pidiera.
+        session()->forget('carrito_cupon');
 
         if ($intento) {
             $intento->pedido_id = $orden->id;

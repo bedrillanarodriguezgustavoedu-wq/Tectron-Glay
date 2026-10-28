@@ -7028,6 +7028,20 @@ section,
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
+/* Mientras el cliente no suba foto, sus iniciales hacen de avatar. */
+.account .profile-menu .user-info .user-avatar .account-avatar-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 4px solid var(--surface-color);
+  background-color: #eef2f7;
+  color: var(--color-primary, #0d6efd);
+  font-size: 2rem;
+  font-weight: 700;
+}
+
 .account .profile-menu .user-info .user-avatar .status-badge {
   position: absolute;
   bottom: 0;

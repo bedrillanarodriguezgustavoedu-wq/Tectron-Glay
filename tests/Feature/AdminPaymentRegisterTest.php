@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\Feature\Concerns\CreatesOrderPaymentTables;
@@ -634,6 +636,73 @@ class AdminPaymentRegisterTest extends TestCase
         $this->actingAs($anotherCustomer)
             ->get(route('web.pedidos.comprobante.ver', $pedidoId))
             ->assertNotFound();
+    }
+
+    /**
+     * El tunel publico cambia de nombre solo y el .env se queda con el viejo. La
+     * tienda sigue funcionando en local, pero el cliente que paga con tarjeta
+     * vuelve a una direccion que no abre y eso antes no se veia en ningun panel.
+     */
+    public function test_the_panel_warns_when_the_public_return_address_no_longer_resolves(): void
+    {
+        $this->abrirPanelDePagosConTarjeta('https://muerto-ahora.trycloudflare.com');
+
+        Http::fake([
+            'muerto-ahora.trycloudflare.com/*' => Http::failedConnection('DNS resolution error'),
+        ]);
+
+        $this->get(route('admin.pagos.index'))
+            ->assertOk()
+            ->assertSee('El enlace de retorno está caído')
+            ->assertSee('No se perdió ningún cobro');
+    }
+
+    public function test_the_panel_shows_the_return_address_quietly_while_it_still_responds(): void
+    {
+        $this->abrirPanelDePagosConTarjeta('https://vivo-ahora.trycloudflare.com');
+
+        Http::fake([
+            'vivo-ahora.trycloudflare.com/*' => Http::response('ok', 302),
+        ]);
+
+        $this->get(route('admin.pagos.index'))
+            ->assertOk()
+            ->assertSee('https://vivo-ahora.trycloudflare.com/pago/tarjeta/retorno', false)
+            ->assertDontSee('está caído');
+    }
+
+    public function test_a_return_address_pointing_at_this_pc_is_reported_as_unusable(): void
+    {
+        $this->abrirPanelDePagosConTarjeta('http://127.0.0.1:8000');
+
+        // Sin tunel no hay que llamar a nadie: se sabe que no sirve leyendo el host.
+        Http::fake();
+
+        $this->get(route('admin.pagos.index'))
+            ->assertOk()
+            ->assertSee('Mercado Pago no puede redirigir ahí al cliente');
+
+        Http::assertNothingSent();
+    }
+
+    private function abrirPanelDePagosConTarjeta(string $urlBase): void
+    {
+        $role = Role::firstOrCreate(['name' => 'ADMINISTRADOR', 'guard_name' => 'web']);
+        $role->givePermissionTo(Permission::firstOrCreate([
+            'name' => 'Listado de Pedidos',
+            'guard_name' => 'web',
+        ]));
+
+        $admin = User::factory()->create();
+        $admin->assignRole($role);
+        $this->actingAs($admin);
+
+        config([
+            'services.mercadopago.enabled' => true,
+            'services.mercadopago.access_token' => 'TEST-123456-7890-abcdefghijklmnop',
+            'services.mercadopago.url_base' => $urlBase,
+        ]);
+        Cache::forget('mercadopago.enlace-publico');
     }
 
     private function paymentAdmin(): User

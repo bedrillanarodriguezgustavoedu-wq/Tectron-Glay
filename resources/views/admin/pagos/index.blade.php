@@ -17,6 +17,23 @@
         </div>
     </div>
 
+    @if ($enlacePublico)
+        @if ($enlacePublico['ok'])
+            <div class="small text-muted mb-4">
+                <i class="bi bi-link-45deg me-1" aria-hidden="true"></i>
+                Mercado Pago devuelve al cliente a <code>{{ $enlacePublico['url'] }}</code> — {{ $enlacePublico['detalle'] }}
+            </div>
+        @else
+            <div class="alert alert-warning" role="alert">
+                <strong><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i> El enlace de retorno está caído.</strong>
+                El cliente que paga con tarjeta vuelve a una dirección que no abre, así que un rechazo se ve como un error de la tienda.
+                No se perdió ningún cobro: Mercado Pago no cobra los intentos rechazados.
+                <div class="small mt-1">Dirección configurada: <code>{{ $enlacePublico['url'] }}</code> · {{ $enlacePublico['detalle'] }}</div>
+                <div class="small">Arreglo: doble clic en <code>tunel-galy.bat</code>, que levanta el túnel y actualiza el <code>.env</code> solo.</div>
+            </div>
+        @endif
+    @endif
+
     <div class="row g-3 mb-4" aria-label="Resumen de pagos">
         @foreach ([
             ['key' => 'por_revisar', 'label' => 'Comprobantes por revisar', 'icon' => 'bi-receipt-cutoff', 'color' => 'warning', 'description' => 'Requieren revisar el abono en la app.'],

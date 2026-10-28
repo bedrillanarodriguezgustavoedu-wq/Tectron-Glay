@@ -285,12 +285,13 @@ class CarritoTest extends TestCase
             ->assertSee('Titular Plin')
             ->assertDontSee('Titular exclusivo app')
             ->assertDontSee('Titular Plin app')
-            ->assertSee('Número: <strong>987654321</strong>', false)
-            ->assertSee('Número: <strong>912345678</strong>', false)
+            // El dueño quitó el celular de la pantalla de pago: el cliente usa el QR.
+            ->assertDontSee('987654321')
+            ->assertDontSee('912345678')
             ->assertSee('data-checkout-qr="yape"', false)
             ->assertSee('data-checkout-qr="plin"', false)
             ->assertSee('formatearPrecioJS(total)', false)
-            ->assertSee('data-copy-payment-number="987654321"', false)
+            ->assertDontSee('data-copy-payment-number="987654321"', false)
             ->assertSee('id="payment-copy-feedback"', false)
             ->assertSee('Comprueba que el nombre del destinatario coincida antes de pagar.')
             ->assertSee('Elige un método de pago');
@@ -433,6 +434,65 @@ class CarritoTest extends TestCase
             str_contains($html, 'id="qrZoomModal"'),
             'Sin el modal de agrado, el QR queda ilegible en el celular.'
         );
+    }
+
+    /**
+     * Un `<input disabled>` no es enviable: si el script desactiva las cantidades
+     * antes de armar el FormData, el navegador manda el formulario vacío y el
+     * servidor contesta «El campo carrito id es obligatorio».
+     */
+    public function test_el_script_de_guardar_cantidades_recoje_el_formdata_antes_de_desactivar_los_inputs(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->forceFill(['galy_user_id' => $usuario->id])->save();
+        $producto = $this->createProductWithSharedInventory(5);
+        $producto->forceFill([
+            'precio_venta' => 550,
+            'precio_oferta' => null,
+            'en_oferta' => false,
+        ])->save();
+
+        Schema::create('producto_imagenes', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('producto_id');
+            $table->string('imagen')->nullable();
+            $table->timestamps();
+        });
+
+        DB::table('ajustes')->insert([
+            'nombre' => 'GALY',
+            'descripcion' => 'Tienda',
+            'sucursal' => 'Principal',
+            'direccion' => 'Dirección',
+            'telefono' => '999999999',
+            'logo' => 'logo.png',
+            'imagen_login' => 'login.png',
+            'email' => 'tienda@example.com',
+            'divisa' => 'PEN',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('carrito')->insert([
+            'usuario_id' => $usuario->galy_user_id,
+            'producto_id' => $producto->id,
+            'cantidad' => 1,
+        ]);
+
+        $html = $this->actingAs($usuario)->get(route('web.carrito.index'))->getContent();
+
+        $inicio = strpos($html, "const formActualizar = document.getElementById('form-actualizar-carrito');");
+        $this->assertNotFalse($inicio, 'La página debe seguir montando el guardado AJAX del carrito.');
+
+        $bloque = substr($html, $inicio, 2500);
+
+        $recoleccion = strpos($bloque, 'new FormData(this)');
+        $desactivacion = strpos($bloque, 'control.disabled = true');
+
+        $this->assertNotFalse($recoleccion, 'El guardado del carrito debe armar un FormData.');
+        $this->assertNotFalse($desactivacion, 'El guardado del carrito debe bloquear los controles mientras escribe.');
+        $this->assertLessThan($desactivacion, $recoleccion,
+            'El FormData debe armarse antes de desactivar las cantidades: desactivadas, no viajan y el carrito llega vacío al servidor.');
     }
 
     private function getCartItemId(User $usuario, Producto $producto): int

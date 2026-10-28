@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ProductoImagen;
 use App\Services\ReservaProductoService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,7 +34,7 @@ class ReservaProductoController extends Controller
 
         return view('admin.reservas.index', [
             'reservations' => $items,
-            'imagesUrl' => config('galy.public_url').'/img',
+            'imagesUrl' => ProductoImagen::sharedImagesBaseUrl(),
         ]);
     }
 
@@ -70,7 +71,7 @@ class ReservaProductoController extends Controller
 
         return view('web.reservas', [
             'reservations' => $reservations->listForUser($userId),
-            'imagesUrl' => config('galy.public_url').'/img',
+            'imagesUrl' => ProductoImagen::sharedImagesBaseUrl(),
         ]);
     }
 

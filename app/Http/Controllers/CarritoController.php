@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Ajuste;
 use App\Models\Carrito;
+use App\Models\Cupon;
 use App\Models\Direccion;
 use App\Models\Pais;
 use App\Models\Producto;
@@ -49,7 +50,29 @@ class CarritoController extends Controller
             ? PuntoRecojo::agenciasPorProvincia()
             : collect();
 
-        return view('web.carritos', compact('carritos', 'ajuste', 'paises', 'direcciones', 'puntosRecojo', 'agencias'));
+        // El código vive en la sesión, nunca el monto: se resuelve contra el
+        // subtotal real en cada visita para que un cupón vencido deje de aplicar
+        // solo con recargar la página.
+        $subtotalCarrito = $this->subtotalCarrito((int) $userId);
+        $codigoSesion = (string) session('carrito_cupon', '');
+        $cupon = $codigoSesion === ''
+            ? ['codigo' => null, 'porcentaje' => 0, 'descuento' => 0.0, 'mensaje' => null]
+            : Cupon::aplicar($codigoSesion, $subtotalCarrito);
+
+        if ($codigoSesion !== '' && $cupon['codigo'] === null) {
+            session()->forget('carrito_cupon');
+        }
+
+        return view('web.carritos', compact(
+            'carritos',
+            'ajuste',
+            'paises',
+            'direcciones',
+            'puntosRecojo',
+            'agencias',
+            'cupon',
+            'subtotalCarrito'
+        ));
     }
 
     /**
@@ -224,6 +247,16 @@ class CarritoController extends Controller
 
                 $contador = Carrito::where('usuario_id', $userId)->sum('cantidad');
 
+                // El carrito cambió: el cupón se resuelve contra el subtotal nuevo
+                // para que el resumen mostrado sea el mismo que cobrará el pedido.
+                $codigoSesion = (string) $request->session()->get('carrito_cupon', '');
+                $cupon = $codigoSesion === ''
+                    ? ['codigo' => null, 'porcentaje' => 0, 'descuento' => 0.0, 'mensaje' => null]
+                    : Cupon::aplicar($codigoSesion, $subtotal_acumulado);
+                if ($codigoSesion !== '' && $cupon['codigo'] === null) {
+                    $request->session()->forget('carrito_cupon');
+                }
+
                 return response()->json([
                     'success' => true,
                     'mensaje' => 'Carrito actualizado correctamente.',
@@ -233,6 +266,11 @@ class CarritoController extends Controller
                     'subtotal_original_acumulado_formateado' => Ajuste::formatear_precio($subtotal_original_acumulado),
                     'subtotal_acumulado' => $subtotal_acumulado,
                     'subtotal_acumulado_formateado' => Ajuste::formatear_precio($subtotal_acumulado),
+                    'cupon' => [
+                        'codigo' => $cupon['codigo'],
+                        'porcentaje' => $cupon['porcentaje'],
+                        'descuento' => $cupon['descuento'],
+                    ],
                 ]);
             }
 
@@ -310,6 +348,85 @@ class CarritoController extends Controller
 
         return redirect()->route('web.carrito.index')
             ->with('mensaje', 'Carrito limpiado correctamente')->with('icono', 'success');
+    }
+
+    /**
+     * Aplica o quita el cupón. Aquí solo se guarda el CÓDIGO en la sesión: el
+     * descuento se recalcula contra el subtotal real en cada visita y otra vez al
+     * crear el pedido, para que un código inyectado por POST no pueda cambiar un monto.
+     */
+    public function cupon(Request $request)
+    {
+        $request->validate([
+            'codigo' => 'nullable|string|max:30',
+            'quitar' => 'nullable|boolean',
+        ]);
+
+        $codigo = $request->boolean('quitar') ? '' : trim((string) $request->input('codigo'));
+
+        if ($codigo === '') {
+            $request->session()->forget('carrito_cupon');
+
+            return redirect()->route('web.carrito.index')
+                ->with('mensaje', 'Quitamos el cupón: el carrito vuelve a su precio normal.')
+                ->with('icono', 'success');
+        }
+
+        $userId = Auth::user()->resolveGalyUserId();
+        if ($userId === null) {
+            return $this->unlinkedAccountResponse($request);
+        }
+
+        $subtotal = $this->subtotalCarrito($userId);
+        if ($subtotal <= 0.0) {
+            $request->session()->forget('carrito_cupon');
+
+            return redirect()->route('web.carrito.index')
+                ->withInput(['codigo_cupon' => $codigo])
+                ->with('mensaje', 'Agrega productos al carrito antes de usar un cupón.')
+                ->with('icono', 'warning');
+        }
+
+        $resuelto = Cupon::aplicar($codigo, $subtotal);
+
+        if ($resuelto['mensaje'] !== null) {
+            $request->session()->forget('carrito_cupon');
+
+            return redirect()->route('web.carrito.index')
+                ->withInput(['codigo_cupon' => $codigo])
+                ->with('mensaje', $resuelto['mensaje'])
+                ->with('icono', 'warning');
+        }
+
+        $request->session()->put('carrito_cupon', $resuelto['codigo']);
+
+        return redirect()->route('web.carrito.index')
+            ->with('mensaje', 'Cupón '.$resuelto['codigo'].' aplicado: '.
+                Ajuste::formatear_precio($resuelto['descuento']).' de descuento ('.$resuelto['porcentaje'].'%).')
+            ->with('icono', 'success');
+    }
+
+    /**
+     * Mismo criterio de precio que usan la vista del carrito y `OrdenController`:
+     * oferta vigente o precio de venta.
+     */
+    private function subtotalCarrito(int $userId): float
+    {
+        $subtotal = 0.0;
+
+        foreach (Carrito::where('usuario_id', $userId)->with('producto')->get() as $item) {
+            if (! $item->producto) {
+                continue;
+            }
+
+            $precio = $item->producto->en_oferta && $item->producto->precio_oferta > 0
+                ? $item->producto->precio_oferta
+                : $item->producto->precio_venta;
+
+            $subtotal += (float) $precio * (int) $item->cantidad;
+        }
+
+        return round($subtotal, 2);
     }
 
     private function unlinkedAccountResponse(Request $request)

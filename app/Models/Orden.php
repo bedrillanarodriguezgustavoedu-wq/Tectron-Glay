@@ -55,6 +55,19 @@ class Orden extends Model
         };
     }
 
+    /**
+     * La app y el panel PHP escriben `estado` como texto libre, así que ahí cabe
+     * hasta «PAGADO», que es un pago y no una etapa de envío. Al cliente solo se le
+     * muestran etapas reales: cualquier otro valor significa «todavía no salió».
+     */
+    public function estado_para_cliente(): string
+    {
+        $estado = $this->estado_orden;
+        $etapas = ['En proceso', 'Recibido', 'Enviado', 'En transporte', 'Entregado', 'Listo para su recojo', 'Cancelado'];
+
+        return in_array($estado, $etapas, true) ? $estado : 'En proceso';
+    }
+
     public function setEstadoOrdenAttribute($value): void
     {
         $estado = strtoupper(trim((string) $value));

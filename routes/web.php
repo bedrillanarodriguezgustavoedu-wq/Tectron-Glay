@@ -542,6 +542,8 @@ Route::get('/dashboard', [DashboardController::class, 'index'])->name('web.dashb
 Route::get('/ajustes', [DashboardController::class, 'ajustes'])->name('web.ajustes')->middleware('auth');
 Route::put('/ajustes/informacion_personal', [DashboardController::class, 'informacion_personal'])->name('web.informacion_personal')->middleware('auth');
 Route::put('/ajustes/actualizar_password', [DashboardController::class, 'actualizar_password'])->name('web.actualizar_password')->middleware('auth');
+Route::put('/ajustes/foto_perfil', [DashboardController::class, 'actualizar_foto'])->name('web.foto_perfil')->middleware('auth');
+Route::delete('/ajustes/foto_perfil', [DashboardController::class, 'quitar_foto'])->name('web.foto_perfil.eliminar')->middleware('auth');
 Route::get('/web/login', [DashboardController::class, 'login'])->name('web.login');
 Route::post('/web/login', [DashboardController::class, 'autenticacion'])->name('web.autenticacion');
 Route::get('/web/registro', [DashboardController::class, 'registro'])->name('web.registro');
@@ -555,6 +557,7 @@ Route::post('/carrito/agregar', [CarritoController::class, 'store'])->name('web.
 Route::put('/carrito/actualizar', [CarritoController::class, 'update'])->name('web.carrito.update')->middleware('auth');
 Route::delete('/carrito/{id}', [CarritoController::class, 'destroy'])->name('web.carrito.destroy')->middleware('auth');
 Route::post('/carrito/limpiar', [CarritoController::class, 'limpiar'])->name('web.carrito.limpiar')->middleware('auth');
+Route::post('/carrito/cupon', [CarritoController::class, 'cupon'])->name('web.carrito.cupon')->middleware('auth');
 
 // ////////////////////////////////////////////////////RUTAS PARA PEDIDOS Y PAGOS MANUALES////////////////////////////////////////////////////////////
 Route::get('/pedido/{id}/confirmacion', [OrdenController::class, 'confirmacion'])
