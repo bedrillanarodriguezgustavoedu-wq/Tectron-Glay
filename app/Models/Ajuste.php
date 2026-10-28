@@ -180,6 +180,55 @@ class Ajuste extends Model
     }
 
     /**
+     * Yape y Plin pueden compartir el número del titular, pero no el código: el QR
+     * de Yape abre Yape, y nadie termina pagando por Plin sin querer. El panel guarda
+     * cada imagen con un nombre nuevo, así que pegar la misma foto en los dos métodos
+     * produce dos rutas distintas con un mismo código. Se compara el contenido.
+     *
+     * @return array<string, string> canal => nombres de los métodos repetidos
+     */
+    public static function codigosQrRepetidos(?self $ajuste): array
+    {
+        if (! $ajuste) {
+            return [];
+        }
+
+        $repetidos = [];
+
+        foreach ([
+            'web' => ['Yape' => $ajuste->web_yape_qr, 'Plin' => $ajuste->web_plin_qr],
+            'app' => ['Yape' => $ajuste->yape_qr, 'Plin' => $ajuste->plin_qr],
+        ] as $canal => $metodos) {
+            $firmas = [];
+
+            foreach ($metodos as $metodo => $ruta) {
+                if (filled($ruta)) {
+                    $firmas[$metodo] = self::firmaDelCodigoQr($ruta);
+                }
+            }
+
+            if (count($firmas) === 2 && $firmas['Yape'] === $firmas['Plin']) {
+                $repetidos[$canal] = implode(' y ', array_keys($firmas));
+            }
+        }
+
+        return $repetidos;
+    }
+
+    /**
+     * Sin archivo en el disco no hay contenido que comparar: queda la ruta, que es
+     * lo único verificable y coincide solo si es literalmente la misma imagen.
+     */
+    private static function firmaDelCodigoQr(string $ruta): string
+    {
+        try {
+            return md5((string) \Illuminate\Support\Facades\Storage::disk('public')->get($ruta));
+        } catch (\Throwable) {
+            return $ruta;
+        }
+    }
+
+    /**
      * El checkout web muestra «Número de cuenta» tal cual al cliente, así que un
      * PAN guardado ahí aparecería como destino de pago y quedaría en la base de
      * datos. Las cuentas peruanas (191-…, o 2209… de 14 dígitos) no caen en este

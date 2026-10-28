@@ -368,6 +368,7 @@
 
                         <div class="row">
                             <div class="col-12">
+                                    @php $qrRepetido = \App\Models\Ajuste::codigosQrRepetidos($ajuste); @endphp
                                     @foreach ([
                                         ['key' => 'web', 'prefix' => 'web_', 'title' => 'Pago exclusivo de la página web', 'description' => 'Estos datos y códigos QR se usan únicamente en el checkout y en los pedidos creados desde la página web. No modifican los medios de pago de la app GALY.'],
                                         ['key' => 'app', 'prefix' => '', 'title' => 'Pago exclusivo de la app GALY', 'description' => 'La app abre directamente Yape o Interbank/Plin; aquí solo necesitas configurar el número receptor y el titular. No requiere QR y no modifica los medios de pago de la página web.'],
@@ -381,6 +382,12 @@
                                             <i class="bi bi-info-circle me-1"></i>{{ $paymentChannel['description'] }}
                                             Configura los datos de este canal por separado; pulsa <strong>Guardar cambios</strong> para aplicar.
                                         </div>
+                                        @if (filled($qrRepetido[$paymentChannel['key']] ?? null))
+                                            <div class="alert alert-warning py-2 small mb-3" role="alert">
+                                                <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+                                                <strong>{{ $qrRepetido[$paymentChannel['key']] }}</strong> comparten el mismo código QR en este canal: quien elige uno escanea el código del otro. Ningún pago se perdió, pero sube la foto de cada billetera por separado.
+                                            </div>
+                                        @endif
                                         <div class="row g-3">
                                             @foreach ([
                                                 ['key' => 'yape', 'label' => 'Yape', 'color' => 'primary', 'banco' => false],

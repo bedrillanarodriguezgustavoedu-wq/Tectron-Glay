@@ -196,4 +196,46 @@ class AjustesPagoTarjetaTest extends TestCase
             ->assertDontSee('Mercado Pago rechazó el token')
             ->assertDontSee('bg-danger">Mercado Pago');
     }
+
+    /**
+     * El mismo archivo terminado en las dos casillas deja dos rutas distintas con un
+     * mismo código, y el cliente que elige Plin escanea Yape. Solo se ve comparando
+     * el contenido: por nombre y por ruta las imágenes parecen separadas.
+     */
+    public function test_el_panel_avisa_cuando_yape_y_plin_comparten_el_mismo_codigo_qr(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+        \Illuminate\Support\Facades\Storage::disk('public')->put('pagos/qr/web/yape.png', 'la-misma-foto');
+        \Illuminate\Support\Facades\Storage::disk('public')->put('pagos/qr/web/plin.png', 'la-misma-foto');
+
+        $admin = $this->administrarAjustes();
+        \App\Models\Ajuste::query()->update([
+            'web_yape_qr' => 'pagos/qr/web/yape.png',
+            'web_plin_qr' => 'pagos/qr/web/plin.png',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.ajustes.index'))
+            ->assertOk()
+            ->assertSee('Yape y Plin')
+            ->assertSee('comparten el mismo código QR');
+    }
+
+    public function test_el_panel_no_avisa_cuando_cada_billetera_tiene_su_codigo(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+        \Illuminate\Support\Facades\Storage::disk('public')->put('pagos/qr/web/yape.png', 'codigo-de-yape');
+        \Illuminate\Support\Facades\Storage::disk('public')->put('pagos/qr/web/plin.png', 'codigo-de-plin');
+
+        $admin = $this->administrarAjustes();
+        \App\Models\Ajuste::query()->update([
+            'web_yape_qr' => 'pagos/qr/web/yape.png',
+            'web_plin_qr' => 'pagos/qr/web/plin.png',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.ajustes.index'))
+            ->assertOk()
+            ->assertDontSee('comparten el mismo código QR');
+    }
 }
