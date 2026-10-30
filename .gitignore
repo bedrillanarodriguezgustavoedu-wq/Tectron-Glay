@@ -41,3 +41,7 @@ Thumbs.db
 # Caché de Blade: se regenera sola y aporta ~70 archivos por sesión al historial
 /storage/framework/views/*
 !/storage/framework/views/.gitignore
+
+# Lanzador del Programador de tareas: acceso directo con «Ejecutar: Minimizada» que apunta a programador.bat.
+# Es binario, con rutas absolutas y solo existe en esta máquina. Se recrea con la nota de programador.bat.
+/programador-min.lnk
