@@ -95,6 +95,9 @@
             <div class="card">
                 <div class="card-header">
                     <h4 class="card-title">Imágenes del producto</h4>
+                    <p class="text-muted mb-0" style="font-size: .85rem;">
+                        La imagen marcada como <strong>Principal</strong> es la que se muestra en la ficha de la tienda.
+                    </p>
                     <div style="float: right">
                         <button type="button" class="btn btn-primary" data-bs-toggle="modal"
                             data-bs-target="#exampleModal">
@@ -132,6 +135,7 @@
                                                             <div class="invalid-feedback">{{ $message }}</div>
                                                         @enderror
                                                     </div>
+                                                    <small class="text-muted">JPEG, PNG, GIF o WebP · máximo 2 MB.</small>
                                                 </div>
                                                 <center>
                                                     <img src="" id="preview2"
@@ -159,22 +163,56 @@
                         </div>
                     </div>
 
+                    @if ($errors->any())
+                        <script>
+                            document.addEventListener('DOMContentLoaded', function() {
+                                const modal = document.getElementById('exampleModal');
+                                if (modal) {
+                                    bootstrap.Modal.getOrCreateInstance(modal).show();
+                                }
+                            });
+                        </script>
+                    @endif
+
+                    @php
+                        $nombrePrincipal = basename((string) ($producto->imagen_url ?? ''));
+                        $imagenPrincipal = $producto->imagenes->first(
+                            fn ($item) => basename((string) $item->imagen) === $nombrePrincipal
+                        ) ?? $producto->imagenes->first();
+                    @endphp
                     <div class="row">
                         @foreach ($producto->imagenes as $imagen)
+                            @php $esPrincipal = $imagenPrincipal && $imagenPrincipal->id === $imagen->id; @endphp
                             <div class="col-md-3" style="margin-bottom: 20px;">
-                                <div class="card">
-                                    <img src="{{ $imagen->url }}" class="card-img-top"
-                                        alt="Imagen del producto">
-                                    <br>
-                                    <form action="{{ url('/admin/producto/imagen/' . $imagen->id . '/destroy_imagen') }}"
-                                        method="post" id="miFormulario{{ $imagen->id }}" class="d-inline">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-danger btn-sm btn-block"
-                                            onclick="preguntar{{ $imagen->id }}(event)">
-                                            <i class="bi bi-trash"></i> Borrar imagen
-                                        </button>
-                                    </form>
+                                <div class="card position-relative h-100 {{ $esPrincipal ? 'border border-primary' : '' }}">
+                                    @if ($esPrincipal)
+                                        <span class="badge bg-primary position-absolute top-0 start-0 m-2">
+                                            <i class="bi bi-star-fill"></i> Principal
+                                        </span>
+                                    @endif
+                                    <img src="{{ $imagen->url }}" class="card-img-top" alt="Imagen del producto"
+                                        style="height: 180px; object-fit: contain; background: #f8f9fa;">
+                                    <div class="card-body p-2 d-grid gap-2">
+                                        @unless ($esPrincipal)
+                                            <form action="{{ route('admin.productos.imagen_principal', $imagen->id) }}"
+                                                method="post">
+                                                @csrf
+                                                @method('PUT')
+                                                <button type="submit" class="btn btn-outline-primary btn-sm w-100">
+                                                    <i class="bi bi-star"></i> Usar como principal
+                                                </button>
+                                            </form>
+                                        @endunless
+                                        <form action="{{ url('/admin/producto/imagen/' . $imagen->id . '/destroy_imagen') }}"
+                                            method="post" id="miFormulario{{ $imagen->id }}">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-danger btn-sm w-100"
+                                                onclick="preguntar{{ $imagen->id }}(event)">
+                                                <i class="bi bi-trash"></i> Borrar imagen
+                                            </button>
+                                        </form>
+                                    </div>
                                     <script>
                                         function preguntar{{ $imagen->id }}(event) {
                                             event.preventDefault();

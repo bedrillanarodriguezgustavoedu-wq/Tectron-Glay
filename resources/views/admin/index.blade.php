@@ -272,10 +272,9 @@
             @php
                 $galyAccountLinked = auth()->user()->galy_user_id !== null;
                 $isGalyAdmin = $galyAccountLinked && auth()->user()->galy_es_admin;
-                $hasGalyAdminToken = $isGalyAdmin && filled(session('galy_admin_token'));
-                $galyAdminPanelUrl = $hasGalyAdminToken
+                $galyAdminPanelUrl = $isGalyAdmin
                     ? route('admin.galy-panel')
-                    : route('web.login', ['galy' => $isGalyAdmin ? 'renew' : 'connect']);
+                    : route('web.login', ['galy' => 'connect']);
             @endphp
             <section class="galy-admin-card mb-4" aria-labelledby="galy-admin-title">
                 <div>
@@ -295,11 +294,75 @@
                     <a class="btn btn-primary d-inline-flex align-items-center justify-content-center gap-2 flex-shrink-0"
                         href="{{ $galyAdminPanelUrl }}">
                         <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
-                        {{ $hasGalyAdminToken ? 'Abrir administrador GALY' : ($isGalyAdmin ? 'Renovar sesión GALY' : 'Conectar mi cuenta GALY') }}
+                        {{ $isGalyAdmin ? 'Abrir administrador GALY' : 'Conectar mi cuenta GALY' }}
                     </a>
                 @endif
             </section>
         @endif
+
+        @can('Ver dashboard del Admin')
+            <section class="mb-4" aria-labelledby="app-galy-title">
+                <h2 id="app-galy-title" class="dashboard-section-label">App GALY · administración de la aplicación</h2>
+                <div class="row g-2">
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <a class="dashboard-action" href="{{ route('admin.app-galy.index') }}">
+                            <span class="dashboard-action-icon"><i class="bi bi-phone" aria-hidden="true"></i></span>
+                            <span><strong>Resumen app</strong><small>Ventas, stock y utilidad</small></span>
+                            <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <a class="dashboard-action" href="{{ route('admin.app-galy.clientes') }}">
+                            <span class="dashboard-action-icon"><i class="bi bi-people" aria-hidden="true"></i></span>
+                            <span><strong>Clientes app</strong><small>Cuentas, puntos y pedidos</small></span>
+                            <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <a class="dashboard-action" href="{{ route('admin.app-galy.notificaciones') }}">
+                            <span class="dashboard-action-icon"><i class="bi bi-bell" aria-hidden="true"></i></span>
+                            <span><strong>Notificaciones</strong><small>Anuncios push a la app</small></span>
+                            <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <a class="dashboard-action" href="{{ route('admin.app-galy.comentarios') }}">
+                            <span class="dashboard-action-icon"><i class="bi bi-chat-left-text" aria-hidden="true"></i></span>
+                            <span><strong>Comentarios</strong><small>Reseñas de clientes</small></span>
+                            <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <a class="dashboard-action" href="{{ route('admin.app-galy.pedidos') }}">
+                            <span class="dashboard-action-icon"><i class="bi bi-receipt" aria-hidden="true"></i></span>
+                            <span><strong>Pedidos de la app</strong><small>Estado, pago y total</small></span>
+                            <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <a class="dashboard-action" href="{{ route('admin.app-galy.administradores') }}">
+                            <span class="dashboard-action-icon"><i class="bi bi-shield-lock" aria-hidden="true"></i></span>
+                            <span><strong>Administradores GALY</strong><small>Rangos y accesos</small></span>
+                            <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <a class="dashboard-action" href="{{ route('admin.app-galy.dispositivos') }}">
+                            <span class="dashboard-action-icon"><i class="bi bi-phone-vibrate" aria-hidden="true"></i></span>
+                            <span><strong>Dispositivos push</strong><small>Teléfonos registrados</small></span>
+                            <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                    <div class="col-12 col-sm-6 col-xl-3">
+                        <a class="dashboard-action" href="{{ route('admin.app-galy.index') }}#funciones-app">
+                            <span class="dashboard-action-icon"><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i></span>
+                            <span><strong>Todas las funciones</strong><small>Lo que ve el admin de la app</small></span>
+                            <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                </div>
+            </section>
+        @endcan
 
         @if (auth()->user()->canAny([
             'Crear Producto',

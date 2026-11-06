@@ -8,6 +8,7 @@ use App\Models\Categoria;
 use App\Models\Marca;
 use App\Models\Producto;
 use App\Models\ProductoImagen;
+use App\Support\ProductoImportador;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,10 @@ class ProductoController extends Controller
     public function index(Request $request)
     {
         $ajuste = Ajuste::first();
-        $query = Producto::query()->with('categoria');
+        $enPapelera = $request->boolean('eliminados');
+        $query = $this->busqueda($request->input('buscar'))
+            ->when($enPapelera, fn ($consulta) => $consulta->onlyTrashed())
+            ->with('categoria');
         $hasProductMap = Schema::hasTable('tectron_galy_product_map');
 
         if ($hasProductMap) {
@@ -38,19 +42,9 @@ class ProductoController extends Controller
                 ->orderBy('productos.nombre');
         }
 
-        if ($request->filled('buscar')) {
-            $search = $request->string('buscar')->toString();
-            $query->where(function ($productQuery) use ($search) {
-                $productQuery
-                    ->where('nombre', 'like', "%{$search}%")
-                    ->orWhere('codigo', 'like', "%{$search}%")
-                    ->orWhere('descripcion_corta', 'like', "%{$search}%")
-                    ->orWhere('descripcion_larga', 'like', "%{$search}%");
-            });
-        }
-
         $productos = $query->paginate(10)->withQueryString();
         $productosGaly = Producto::count();
+        $productosEnPapelera = Producto::onlyTrashed()->count();
         $productosTectron = $hasProductMap
             ? DB::table('tectron_galy_product_map')->count()
             : 0;
@@ -60,8 +54,31 @@ class ProductoController extends Controller
             'ajuste',
             'productosGaly',
             'productosTectron',
+            'productosEnPapelera',
+            'enPapelera',
             'hasProductMap'
         ));
+    }
+
+    /**
+     * La misma búsqueda del listado, sin paginar: la necesita el borrado por
+     * selección ("los N del filtro") para no confiar en los ids que trae el
+     * formulario.
+     */
+    private function busqueda(?string $buscar): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = Producto::query();
+
+        if ($buscar !== null && trim($buscar) !== '') {
+            $query->where(function ($consulta) use ($buscar) {
+                $consulta->where('nombre', 'like', "%{$buscar}%")
+                    ->orWhere('codigo', 'like', "%{$buscar}%")
+                    ->orWhere('descripcion_corta', 'like', "%{$buscar}%")
+                    ->orWhere('descripcion_larga', 'like', "%{$buscar}%");
+            });
+        }
+
+        return $query;
     }
 
     /**
@@ -134,6 +151,72 @@ class ProductoController extends Controller
     }
 
     /**
+     * Formulario para pegar la lista de inventario y crear los productos en lote.
+     */
+    public function importar()
+    {
+        return view('admin.productos.importar', [
+            'categorias' => Categoria::orderBy('nombre')->get(),
+            'marcas' => Marca::where('activo', true)->orderBy('nombre')->get(),
+        ]);
+    }
+
+    /**
+     * Previsualiza o guarda la lista pegada en el formulario de importación.
+     */
+    public function importarGuardar(Request $request)
+    {
+        $datos = $request->validate([
+            'filas' => ['required', 'string'],
+            'categoria_id' => ['nullable', 'integer'],
+            'marca_id' => ['nullable', 'integer'],
+            'accion' => ['required', Rule::in(['previsualizar', 'importar'])],
+            'actualizar' => ['nullable', 'boolean'],
+        ], [
+            'filas.required' => 'Pega al menos una fila de la lista.',
+            'accion.required' => 'Indica si quieres previsualizar o importar.',
+        ]);
+
+        $filas = ProductoImportador::filas($datos['filas']);
+
+        if ($filas === []) {
+            return back()->withInput()->withErrors([
+                'filas' => 'No se reconoció ninguna fila. Separa las columnas con tabulación (al pegar desde Excel) y revisa que la lista no esté vacía.',
+            ]);
+        }
+
+        $categoriaDefecto = $request->filled('categoria_id') && Categoria::whereKey($request->input('categoria_id'))->exists()
+            ? (int) $request->input('categoria_id')
+            : null;
+        $marcaDefecto = $request->filled('marca_id') && Marca::whereKey($request->input('marca_id'))->exists()
+            ? (int) $request->input('marca_id')
+            : null;
+
+        $preparadas = ProductoImportador::preparar($filas, $categoriaDefecto, $marcaDefecto);
+
+        if ($datos['accion'] === 'previsualizar') {
+            return view('admin.productos.importar', [
+                'categorias' => Categoria::orderBy('nombre')->get(),
+                'marcas' => Marca::where('activo', true)->orderBy('nombre')->get(),
+                'previa' => $preparadas,
+                'filasTexto' => $datos['filas'],
+                'categoriaSeleccionada' => $categoriaDefecto,
+                'marcaSeleccionada' => $marcaDefecto,
+                'actualizar' => $request->boolean('actualizar'),
+            ]);
+        }
+
+        $resumen = ProductoImportador::guardar($preparadas, $request->boolean('actualizar'));
+
+        $mensaje = $resumen['creados'].' productos creados, '.$resumen['actualizados'].' actualizados y '.$resumen['omitidos'].' omitidos.';
+
+        return redirect()->route('admin.productos.index')
+            ->with('mensaje', $mensaje)
+            ->with('icono', $resumen['creados'] > 0 || $resumen['actualizados'] > 0 ? 'success' : 'warning')
+            ->with('importacion_motivos', $resumen['motivos']);
+    }
+
+    /**
      * Display the specified resource.
      */
     public function show($id)
@@ -169,6 +252,11 @@ class ProductoController extends Controller
                     }
                 },
             ],
+        ], [
+            'imagen.required' => 'Selecciona una imagen antes de guardar.',
+            'imagen.file' => 'No se recibió un archivo de imagen válido.',
+            'imagen.max' => 'La imagen no puede pesar más de 2 MB. Redúcela e inténtalo otra vez.',
+            'imagen.uploaded' => 'La imagen no se pudo subir. Verifica que pese menos de 2 MB.',
         ]);
 
         $producto = Producto::findOrFail($id);
@@ -205,8 +293,10 @@ class ProductoController extends Controller
             throw $exception;
         }
 
+        $this->sincronizarImagenesSecundarias($producto->fresh('imagenes'));
+
         return redirect()->route('admin.productos.imagenes', $producto->id)
-            ->with('mensaje', 'Imagen subida exitosamente')
+            ->with('mensaje', 'Imagen subida correctamente. Ahora es la imagen principal del producto.')
             ->with('icono', 'success');
     }
 
@@ -216,7 +306,7 @@ class ProductoController extends Controller
         $productoId = $imagenProducto->producto_id;
         $imagePath = basename((string) $imagenProducto->imagen);
         $imageProduct = Producto::findOrFail($productoId);
-        $wasPrimary = $imageProduct->imagen_url === $imagePath;
+        $wasPrimary = basename((string) $imageProduct->imagen_url) === $imagePath;
 
         DB::connection('galy')->transaction(function () use ($imagenProducto, $imageProduct, $productoId, $wasPrimary) {
             $imagenProducto->delete();
@@ -228,8 +318,55 @@ class ProductoController extends Controller
             }
         });
 
+        $this->sincronizarImagenesSecundarias($imageProduct->fresh('imagenes'));
+
         return redirect()->route('admin.productos.imagenes', $productoId)
-            ->with('mensaje', 'Imagen eliminada exitosamente')
+            ->with('mensaje', 'Imagen eliminada correctamente.')
+            ->with('icono', 'success');
+    }
+
+    /**
+     * El admin de la app GALY lee la galería desde `productos.imagenes_secundarias`
+     * (texto separado por comas), no desde `producto_imagenes`. Mantener ambos
+     * campos sincronizados evita que una foto subida en la web desaparezca allí.
+     */
+    private function sincronizarImagenesSecundarias(Producto $producto): void
+    {
+        $conexion = $producto->getConnectionName() ?? config('database.default');
+        if (! Schema::connection($conexion)->hasColumn('productos', 'imagenes_secundarias')) {
+            return;
+        }
+
+        $principal = basename((string) $producto->imagen_url);
+        $secundarias = $producto->imagenes
+            ->map(fn (ProductoImagen $imagen) => basename((string) $imagen->imagen))
+            ->filter(fn (string $imagen) => $imagen !== '' && $imagen !== $principal)
+            ->unique()
+            ->values()
+            ->implode(',');
+
+        if ((string) $producto->imagenes_secundarias !== $secundarias) {
+            $producto->setAttribute('imagenes_secundarias', $secundarias);
+            $producto->save();
+        }
+    }
+
+    /**
+     * La ficha pública muestra la imagen marcada como principal. Sin esto, al
+     * subir una foto nueva la tienda seguía enseñando la primera de la galería.
+     */
+    public function marcar_imagen_principal(Request $request, $id)
+    {
+        $imagenProducto = ProductoImagen::findOrFail($id);
+        $producto = Producto::findOrFail($imagenProducto->producto_id);
+
+        $producto->setAttribute('imagen_url', $imagenProducto->imagen);
+        $producto->save();
+
+        $this->sincronizarImagenesSecundarias($producto->fresh('imagenes'));
+
+        return redirect()->route('admin.productos.imagenes', $producto->id)
+            ->with('mensaje', 'Imagen principal actualizada. Ya se muestra en la tienda.')
             ->with('icono', 'success');
     }
 
@@ -306,14 +443,92 @@ class ProductoController extends Controller
     public function destroy($id)
     {
         $producto = Producto::findOrFail($id);
-        DB::connection('galy')->transaction(function () use ($producto) {
-            $producto->imagenes()->delete();
+
+        $producto->getConnection()->transaction(function () use ($producto): void {
+            $this->soltarDelCarritoYFavoritos([$producto->id]);
             $producto->delete();
         });
 
         return redirect()->route('admin.productos.index')
-            ->with('mensaje', 'Producto eliminado exitosamente')
+            ->with('mensaje', 'Producto movido a la papelera. Desde ahí se devuelve al catálogo.')
             ->with('icono', 'success');
+    }
+
+    /**
+     * Selección múltiple del listado. El borrado es suave porque `productos` ya
+     * tiene su columna `deleted_at` y el catálogo compartido con la app Android
+     * no tiene ninguna copia detrás: un "eliminar todo" definitivo no se deshace.
+     */
+    public function masivo(Request $request)
+    {
+        $datos = $request->validate([
+            'accion' => ['required', Rule::in(['eliminar', 'restaurar'])],
+            'alcance' => ['required', Rule::in(['seleccion', 'filtro'])],
+            'ids' => ['exclude_if:alcance,filtro', 'required', 'array'],
+            'ids.*' => ['integer', 'min:1'],
+            'buscar' => ['nullable', 'string', 'max:255'],
+            'confirmar' => ['nullable', 'string', 'max:20'],
+        ], [
+            'ids.required' => 'Marca primero la casilla del producto que quieras mover.',
+            'accion.required' => 'Elige una acción para la selección.',
+        ]);
+
+        if ($datos['accion'] === 'eliminar'
+            && mb_strtoupper(trim((string) $request->input('confirmar'))) !== 'ELIMINAR') {
+            return back()->withInput()
+                ->withErrors(['confirmar' => 'Para borrar productos escribe ELIMINAR, tal cual, en la casilla de confirmación.']);
+        }
+
+        $ids = $datos['alcance'] === 'filtro'
+            ? $this->busqueda($request->input('buscar'))->pluck('id')
+            : collect($datos['ids']);
+
+        if ($ids->isEmpty()) {
+            return redirect()->route('admin.productos.index')
+                ->with('mensaje', 'No había ningún producto en la selección.')
+                ->with('icono', 'warning');
+        }
+
+        if ($datos['accion'] === 'restaurar') {
+            $afectados = Producto::onlyTrashed()->whereIn('id', $ids)->restore();
+
+            $mensaje = $afectados.' producto(s) devueltos al catálogo.';
+        } else {
+            $afectados = (new Producto)->getConnection()->transaction(function () use ($ids): int {
+                $this->soltarDelCarritoYFavoritos($ids->all());
+
+                return Producto::whereIn('id', $ids)->delete();
+            });
+
+            $mensaje = $afectados.' producto(s) pasaron a la papelera; desde ahí se devuelven al catálogo.';
+        }
+
+        return redirect()->route('admin.productos.index', [
+            'buscar' => $request->input('buscar'),
+            'eliminados' => $request->boolean('eliminados') ? 1 : null,
+        ])
+            ->with('mensaje', $mensaje)
+            ->with('icono', 'success');
+    }
+
+    /**
+     * El carrito y los favoritos leen el producto directo en la vista; si la
+     * fila desaparece, "Mi carrito" revienta en vez de mostrar el artículo fuera
+     * de stock. Son datos transitorios, no historial: se sueltan.
+     */
+    private function soltarDelCarritoYFavoritos(array $ids): void
+    {
+        if ($ids === []) {
+            return;
+        }
+
+        $conexion = (new Producto)->getConnectionName();
+
+        DB::connection($conexion)->table('carrito')->whereIn('producto_id', $ids)->delete();
+
+        if (Schema::connection($conexion)->hasTable('favoritos')) {
+            DB::connection($conexion)->table('favoritos')->whereIn('producto_id', $ids)->delete();
+        }
     }
 
     public function detalle_producto($id)

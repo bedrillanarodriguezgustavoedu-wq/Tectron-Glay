@@ -53,8 +53,19 @@
 
                         <div class="thumbnail-grid">
 
+                            @php
+                                $nombrePrincipal = basename((string) ($producto->imagen_url ?? ''));
+                                $tienePrincipal = $producto->imagenes->contains(
+                                    fn ($item) => basename((string) $item->imagen) === $nombrePrincipal
+                                );
+                            @endphp
                             @foreach ($producto->imagenes as $item)
-                                <div class="thumbnail-wrapper thumbnail-item active"
+                                @php
+                                    $esPrincipal = $tienePrincipal
+                                        ? basename((string) $item->imagen) === $nombrePrincipal
+                                        : $loop->first;
+                                @endphp
+                                <div class="thumbnail-wrapper thumbnail-item {{ $esPrincipal ? 'active' : '' }}"
                                     data-image="{{ $item->url }}">
                                     <img src="{{ $item->url }}" alt="View {{ $loop->iteration }}"
                                         alt="Product Thumbnail" class="img-fluid">

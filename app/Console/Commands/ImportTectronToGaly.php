@@ -213,57 +213,6 @@ class ImportTectronToGaly extends Command
             throw new RuntimeException('GALY_IMAGES_PATH debe apuntar a la carpeta img que sirve la API y la app Android.');
         }
 
-        private function importSavedItems(): void
-        {
-            $galy = DB::connection('galy');
-            $tables = [
-                'carritos' => 'carrito',
-                'producto_favoritos' => 'favoritos',
-            ];
-
-            foreach ($tables as $sourceTable => $targetTable) {
-                if (! Schema::hasTable($sourceTable)) {
-                    continue;
-                }
-
-                foreach (DB::table($sourceTable)->orderBy('id')->get() as $item) {
-                    $userId = DB::table('tectron_galy_user_map')
-                        ->where('tectron_user_id', $item->usuario_id)
-                        ->value('galy_user_id');
-                    $productId = DB::table('tectron_galy_product_map')
-                        ->where('tectron_product_id', $item->producto_id)
-                        ->value('galy_product_id');
-                    if (! $userId || ! $productId) {
-                        continue;
-                    }
-
-                    $exists = $galy->table($targetTable)
-                        ->where('usuario_id', $userId)
-                        ->where('producto_id', $productId)
-                        ->exists();
-                    if ($exists) {
-                        continue;
-                    }
-
-                    $values = [
-                        'usuario_id' => $userId,
-                        'producto_id' => $productId,
-                    ];
-                    if ($sourceTable === 'carritos') {
-                        $values['cantidad'] = $item->cantidad;
-                    }
-                    if (Schema::connection('galy')->hasColumn($targetTable, 'created_at')) {
-                        $values['created_at'] = $item->created_at ?? now();
-                    }
-                    if (Schema::connection('galy')->hasColumn($targetTable, 'updated_at')) {
-                        $values['updated_at'] = $item->updated_at ?? now();
-                    }
-
-                    $galy->table($targetTable)->insert($values);
-                }
-            }
-        }
-
         $images = DB::table('producto_imagens')->orderBy('id')->get()->groupBy('producto_id');
         $sourceRoot = realpath(Storage::disk('public')->path(''));
 
@@ -368,6 +317,57 @@ class ImportTectronToGaly extends Command
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+        }
+    }
+
+    private function importSavedItems(): void
+    {
+        $galy = DB::connection('galy');
+        $tables = [
+            'carritos' => 'carrito',
+            'producto_favoritos' => 'favoritos',
+        ];
+
+        foreach ($tables as $sourceTable => $targetTable) {
+            if (! Schema::hasTable($sourceTable)) {
+                continue;
+            }
+
+            foreach (DB::table($sourceTable)->orderBy('id')->get() as $item) {
+                $userId = DB::table('tectron_galy_user_map')
+                    ->where('tectron_user_id', $item->usuario_id)
+                    ->value('galy_user_id');
+                $productId = DB::table('tectron_galy_product_map')
+                    ->where('tectron_product_id', $item->producto_id)
+                    ->value('galy_product_id');
+                if (! $userId || ! $productId) {
+                    continue;
+                }
+
+                $exists = $galy->table($targetTable)
+                    ->where('usuario_id', $userId)
+                    ->where('producto_id', $productId)
+                    ->exists();
+                if ($exists) {
+                    continue;
+                }
+
+                $values = [
+                    'usuario_id' => $userId,
+                    'producto_id' => $productId,
+                ];
+                if ($sourceTable === 'carritos') {
+                    $values['cantidad'] = $item->cantidad;
+                }
+                if (Schema::connection('galy')->hasColumn($targetTable, 'created_at')) {
+                    $values['created_at'] = $item->created_at ?? now();
+                }
+                if (Schema::connection('galy')->hasColumn($targetTable, 'updated_at')) {
+                    $values['updated_at'] = $item->updated_at ?? now();
+                }
+
+                $galy->table($targetTable)->insert($values);
+            }
         }
     }
 

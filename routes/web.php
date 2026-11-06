@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AjusteController;
+use App\Http\Controllers\AppGalyController;
 use App\Http\Controllers\AparienciaController;
 use App\Http\Controllers\AsesorController;
 use App\Http\Controllers\Auth\GoogleAuthController;
@@ -67,6 +68,32 @@ Route::get('/admin', [AdminController::class, 'index'])
 Route::get('/admin/galy-panel', GalyAdminLinkController::class)
     ->name('admin.galy-panel')
     ->middleware(['auth', 'can:Ver dashboard del Admin']);
+
+// Administración de la app GALY (misma base de datos `ecommerce` que la app).
+Route::prefix('admin/app-galy')
+    ->name('admin.app-galy.')
+    ->middleware(['auth', 'can:Ver dashboard del Admin'])
+    ->group(function (): void {
+        Route::get('/', [AppGalyController::class, 'index'])->name('index');
+        Route::get('/clientes', [AppGalyController::class, 'clientes'])->name('clientes');
+        Route::get('/clientes/exportar', [AppGalyController::class, 'exportarClientes'])->name('clientes.exportar');
+        Route::get('/clientes/{id}', [AppGalyController::class, 'cliente'])->whereNumber('id')->name('cliente');
+        Route::put('/clientes/{id}', [AppGalyController::class, 'actualizarCliente'])->whereNumber('id')->name('clientes.update');
+        Route::put('/clientes/{id}/password', [AppGalyController::class, 'restablecerPassword'])->whereNumber('id')->name('clientes.password');
+        Route::get('/pedidos', [AppGalyController::class, 'pedidos'])->name('pedidos');
+        Route::get('/pedidos/exportar', [AppGalyController::class, 'exportarPedidos'])->name('pedidos.exportar');
+        Route::get('/reportes', [AppGalyController::class, 'reportes'])->name('reportes');
+        Route::get('/administradores', [AppGalyController::class, 'administradores'])->name('administradores');
+        Route::post('/administradores', [AppGalyController::class, 'crearAdministrador'])->name('administradores.crear');
+        Route::put('/administradores/{id}', [AppGalyController::class, 'alternarAdministrador'])->whereNumber('id')->name('administradores.alternar');
+        Route::get('/notificaciones', [AppGalyController::class, 'notificaciones'])->name('notificaciones');
+        Route::post('/notificaciones', [AppGalyController::class, 'enviarNotificacion'])->name('notificaciones.enviar');
+        Route::get('/dispositivos', [AppGalyController::class, 'dispositivos'])->name('dispositivos');
+        Route::delete('/dispositivos/{id}', [AppGalyController::class, 'revocarDispositivo'])->whereNumber('id')->name('dispositivos.revocar');
+        Route::get('/comentarios', [AppGalyController::class, 'comentarios'])->name('comentarios');
+        Route::delete('/comentarios/{id}', [AppGalyController::class, 'eliminarComentario'])->whereNumber('id')->name('comentarios.eliminar');
+        Route::put('/comentarios/{id}', [AppGalyController::class, 'actualizarComentario'])->whereNumber('id')->name('comentarios.actualizar');
+    });
 
 // Ajustes
 Route::get('/admin/ajustes', [AjusteController::class, 'index'])
@@ -201,6 +228,14 @@ Route::post('/admin/productos/create', [ProductoController::class, 'store'])
     ->name('admin.productos.store')
     ->middleware(['auth', 'can:Guardar Producto']);
 
+Route::get('/admin/productos/importar', [ProductoController::class, 'importar'])
+    ->name('admin.productos.importar')
+    ->middleware(['auth', 'can:Crear Producto']);
+
+Route::post('/admin/productos/importar', [ProductoController::class, 'importarGuardar'])
+    ->name('admin.productos.importar.guardar')
+    ->middleware(['auth', 'can:Guardar Producto']);
+
 Route::get('/admin/producto/{id}', [ProductoController::class, 'show'])
     ->name('admin.productos.show')
     ->middleware(['auth', 'can:Ver detalle de Producto']);
@@ -217,6 +252,10 @@ Route::delete('/admin/producto/imagen/{id}/destroy_imagen', [ProductoController:
     ->name('admin.productos.destroy_imagen')
     ->middleware(['auth', 'can:Eliminar imágenes de Producto']);
 
+Route::put('/admin/producto/imagen/{id}/principal', [ProductoController::class, 'marcar_imagen_principal'])
+    ->name('admin.productos.imagen_principal')
+    ->middleware(['auth', 'can:Gestionar imágenes de Producto']);
+
 Route::get('/admin/producto/{id}/edit', [ProductoController::class, 'edit'])
     ->name('admin.productos.edit')
     ->middleware(['auth', 'can:Editar Producto']);
@@ -227,6 +266,10 @@ Route::put('/admin/producto/{id}', [ProductoController::class, 'update'])
 
 Route::delete('/admin/producto/{id}', [ProductoController::class, 'destroy'])
     ->name('admin.productos.destroy')
+    ->middleware(['auth', 'can:Eliminar Producto']);
+
+Route::post('/admin/productos/masivo', [ProductoController::class, 'masivo'])
+    ->name('admin.productos.masivo')
     ->middleware(['auth', 'can:Eliminar Producto']);
 
 // Pedidos

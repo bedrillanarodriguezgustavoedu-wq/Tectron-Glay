@@ -6,11 +6,14 @@ use App\Models\Concerns\UsesGalyConnection;
 use Database\Factories\ProductoFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Producto extends Model
 {
     /** @use HasFactory<ProductoFactory> */
     use HasFactory;
+
+    use SoftDeletes;
 
     use UsesGalyConnection;
 
@@ -81,9 +84,32 @@ class Producto extends Model
 
     public function getImagenPrincipalUrlAttribute(): string
     {
+        $principal = trim((string) ($this->attributes['imagen_url'] ?? ''));
+
+        // La foto que el admin marcó como principal manda. Antes se devolvía
+        // siempre la primera de la galería, así que al subir una imagen nueva
+        // la ficha seguía mostrando la anterior.
+        if ($principal !== '') {
+            $image = $this->imagenes->first(
+                fn (ProductoImagen $item) => basename((string) $item->imagen) === basename($principal)
+            );
+
+            if ($image !== null) {
+                return $image->url;
+            }
+
+            // La principal también puede ser una foto que aún no está en la
+            // galería (por ejemplo, cargada desde el admin de la app). Si el
+            // archivo existe, debe mandar igual.
+            $resuelta = ProductoImagen::resolveUrl($principal);
+            if ($resuelta !== asset('storage/productos/default.webp')) {
+                return $resuelta;
+            }
+        }
+
         $primaryImage = $this->imagenes->first();
 
-        return $primaryImage?->url ?? ProductoImagen::resolveUrl($this->attributes['imagen_url'] ?? null);
+        return $primaryImage?->url ?? ProductoImagen::resolveUrl($principal !== '' ? $principal : null);
     }
 
     public function categoria()

@@ -23,7 +23,7 @@
 
 <body>
     <script src="{{ asset('assets/static/js/initTheme.js') }}"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="{{ asset('assets/extensions/sweetalert2/sweetalert2.all.min.js') }}"></script>
     <div id="app">
         <div id="sidebar">
             <div class="sidebar-wrapper active">
@@ -82,6 +82,69 @@
                                     <span>Inicio</span>
                                 </a>
                             </li>
+
+                            <li class="sidebar-title">App de GALY</li>
+                            <li class="sidebar-item {{ request()->routeIs('admin.app-galy.index') ? 'active' : '' }}">
+                                <a href="{{ route('admin.app-galy.index') }}" class='sidebar-link'>
+                                    <i class="bi bi-phone"></i>
+                                    <span>Resumen de la app</span>
+                                </a>
+                            </li>
+                            <li class="sidebar-item {{ request()->routeIs('admin.app-galy.clientes*') || request()->routeIs('admin.app-galy.cliente') ? 'active' : '' }}">
+                                <a href="{{ route('admin.app-galy.clientes') }}" class='sidebar-link'>
+                                    <i class="bi bi-people"></i>
+                                    <span>Clientes app</span>
+                                </a>
+                            </li>
+                            <li class="sidebar-item {{ request()->routeIs('admin.app-galy.pedidos*') ? 'active' : '' }}">
+                                <a href="{{ route('admin.app-galy.pedidos') }}" class='sidebar-link'>
+                                    <i class="bi bi-receipt"></i>
+                                    <span>Pedidos de la app</span>
+                                </a>
+                            </li>
+                            <li class="sidebar-item {{ request()->routeIs('admin.app-galy.reportes*') ? 'active' : '' }}">
+                                <a href="{{ route('admin.app-galy.reportes') }}" class='sidebar-link'>
+                                    <i class="bi bi-file-earmark-bar-graph"></i>
+                                    <span>Reportes y ganancias</span>
+                                </a>
+                            </li>
+                            <li class="sidebar-item {{ request()->routeIs('admin.app-galy.administradores*') ? 'active' : '' }}">
+                                <a href="{{ route('admin.app-galy.administradores') }}" class='sidebar-link'>
+                                    <i class="bi bi-shield-lock"></i>
+                                    <span>Administradores GALY</span>
+                                </a>
+                            </li>
+                            <li class="sidebar-item {{ request()->routeIs('admin.app-galy.dispositivos*') ? 'active' : '' }}">
+                                <a href="{{ route('admin.app-galy.dispositivos') }}" class='sidebar-link'>
+                                    <i class="bi bi-phone-vibrate"></i>
+                                    <span>Dispositivos push</span>
+                                </a>
+                            </li>
+                            <li class="sidebar-item {{ request()->routeIs('admin.app-galy.comentarios*') ? 'active' : '' }}">
+                                <a href="{{ route('admin.app-galy.comentarios') }}" class='sidebar-link'>
+                                    <i class="bi bi-chat-left-text"></i>
+                                    <span>Comentarios app</span>
+                                </a>
+                            </li>
+                            <li class="sidebar-item {{ request()->routeIs('admin.app-galy.notificaciones*') ? 'active' : '' }}">
+                                <a href="{{ route('admin.app-galy.notificaciones') }}" class='sidebar-link'>
+                                    <i class="bi bi-bell"></i>
+                                    <span>Notificaciones push</span>
+                                </a>
+                            </li>
+                            @if (Auth::user()?->hasAnyRole(['SUPER ADMIN', 'ADMINISTRADOR']))
+                                @php
+                                    $isLinkedGalyAdmin = Auth::user()->galy_user_id !== null && Auth::user()->galy_es_admin;
+                                    $galyLoginUrl = route('web.login', ['galy' => $isLinkedGalyAdmin ? 'renew' : 'connect']);
+                                    $galyPanelUrl = $isLinkedGalyAdmin ? route('admin.galy-panel') : $galyLoginUrl;
+                                @endphp
+                                <li class="sidebar-item">
+                                    <a class="sidebar-link" href="{{ $galyPanelUrl }}">
+                                        <i class="bi bi-box-arrow-right"></i>
+                                        <span>{{ $isLinkedGalyAdmin ? 'Abrir admin de la app' : 'Conectar cuenta GALY' }}</span>
+                                    </a>
+                                </li>
+                            @endif
                         @endcan
                         @can('Listado de Roles')
                             <li class="sidebar-item {{ request()->is('admin/rol*') ? 'active' : '' }}  ">
@@ -107,21 +170,6 @@
                                 </a>
                             </li>
                         @endcan
-                        @if (Auth::user()?->hasAnyRole(['SUPER ADMIN', 'ADMINISTRADOR']))
-                            @php
-                                $isLinkedGalyAdmin = Auth::user()->galy_user_id !== null && Auth::user()->galy_es_admin;
-                                $hasGalyAdminToken = $isLinkedGalyAdmin && filled(session('galy_admin_token'));
-                                $galyLoginUrl = route('web.login', ['galy' => $isLinkedGalyAdmin ? 'renew' : 'connect']);
-                            @endphp
-                            <li class="sidebar-item {{ request()->routeIs('admin.galy-panel') ? 'active' : '' }}">
-                                <a class="sidebar-link"
-                                    href="{{ $hasGalyAdminToken ? route('admin.galy-panel') : $galyLoginUrl }}"
-                                    @if (request()->routeIs('admin.galy-panel')) aria-current="page" @endif>
-                                    <i class="bi bi-box-arrow-right"></i>
-                                    <span>{{ $isLinkedGalyAdmin ? 'Administrador App GALY' : 'Conectar cuenta GALY' }}</span>
-                                </a>
-                            </li>
-                        @endif
 
                         @can('Listado de Productos')
                             <li class="sidebar-item {{ request()->is('admin/producto*') ? 'active' : '' }}  ">
@@ -363,6 +411,41 @@
                 </a>
             </header>
             <div class="page-content">
+                @if (session('mensaje'))
+                    @php
+                        $tipoAlerta = match (session('icono')) {
+                            'error', 'danger' => 'danger',
+                            'warning' => 'warning',
+                            'info' => 'info',
+                            default => 'success',
+                        };
+                        $iconoAlerta = match ($tipoAlerta) {
+                            'danger' => 'exclamation-octagon-fill',
+                            'warning' => 'exclamation-triangle-fill',
+                            'info' => 'info-circle-fill',
+                            default => 'check-circle-fill',
+                        };
+                    @endphp
+                    <div class="alert alert-{{ $tipoAlerta }} alert-dismissible fade show" role="alert" id="flash-mensaje">
+                        <i class="bi bi-{{ $iconoAlerta }}"></i>
+                        {{ session('mensaje') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+                    </div>
+                @endif
+
+                @if ($errors->any())
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert" id="flash-errores">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <strong>No se pudo completar la acción.</strong>
+                        <ul class="mb-0 mt-1">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+                    </div>
+                @endif
+
                 @yield('content')
 
             </div>
@@ -397,10 +480,23 @@
         <script>
             Swal.fire({
                 position: "center",
-                icon: "{{ $icono }}",
-                title: "{{ $mensaje }}",
+                icon: @json($icono),
+                title: @json($mensaje),
                 showConfirmButton: false,
-                timer: 2000
+                timer: 4000,
+                timerProgressBar: true
+            });
+        </script>
+    @endif
+
+    @if ($errors->any())
+        <script>
+            Swal.fire({
+                position: "center",
+                icon: "error",
+                title: "No se pudo completar la acción",
+                text: @json($errors->first()),
+                confirmButtonText: "Entendido"
             });
         </script>
     @endif
