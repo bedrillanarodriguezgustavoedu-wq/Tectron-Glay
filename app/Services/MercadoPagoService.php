@@ -276,7 +276,7 @@ class MercadoPagoService
             $preferencia['notification_url'] = $this->urlBase().'/webhooks/mercadopago';
         }
 
-        $respuesta = $this->request()->post($this->apiUrl().'/checkout/preferences', $preferencia);
+        $respuesta = $this->request(12, 1)->post($this->apiUrl().'/checkout/preferences', $preferencia);
 
         if ($respuesta->failed()) {
             // 401 y 403 son problemas de credencial, no fallos pasajeros de la
@@ -303,6 +303,247 @@ class MercadoPagoService
         }
 
         return ['preferencia_id' => (string) $preferencia['id'], 'checkout_url' => (string) $url];
+    }
+
+    public function llavePublica(): ?string
+    {
+        $llave = trim((string) config('services.mercadopago.public_key'));
+
+        return $llave === '' ? null : $llave;
+    }
+
+    /**
+     * Si el formulario de tarjeta de Mercado Pago puede pintarse dentro de la
+     * tienda. Apagado por bandera y por llave vacía: mientras el dueño no pegue su
+     * Public Key, la vitrina sigue mostrando el checkout de hoy.
+     *
+     * La llave pública tiene que ser del mismo tipo que el Access Token. Son dos
+     * campos separados del panel, y una `TEST-` con un token de producción —o al
+     * revés— tokeniza la tarjeta en una cuenta que después no puede cobrarla: el
+     * cliente ve un error que no se parece a nada de lo que hay en el `.env`.
+     */
+    public function brickListo(): bool
+    {
+        return config('services.mercadopago.bricks') === true
+            && $this->llavePublica() !== null
+            && $this->llavePublicaDelMismoAmbiente()
+            && (bool) Ajuste::first()?->web_mercadopago_activa
+            && $this->sePuedeOfrecer();
+    }
+
+    public function llavePublicaDelMismoAmbiente(): bool
+    {
+        $llave = $this->llavePublica();
+
+        if ($llave === null) {
+            return false;
+        }
+
+        // Las dos credenciales se parecen demasiado: si el dueño pega el Access
+        // Token en el campo de la Public Key, Mercado Pago responde «public key
+        // not found» y el formulario queda en blanco. La tienda no puede
+        // distinguirlas por forma, pero sí notar que son exactamente la misma.
+        if (hash_equals(trim((string) $this->accessToken()), $llave)) {
+            return false;
+        }
+
+        return str_starts_with($llave, 'TEST-') === $this->esTokenDePrueba();
+    }
+
+    /**
+     * Motivo por el que el brick no está disponible, para el panel. `brickListo()`
+     * dice sí o no; sin esto el dueño tiene que adivinar cuál de las cuatro
+     * condiciones le falta.
+     */
+    public function motivoBrickApagado(): ?string
+    {
+        if (config('services.mercadopago.bricks') !== true) {
+            return 'La bandera MERCADOPAGO_BRICKS está en false.';
+        }
+
+        if ($this->llavePublica() === null) {
+            return 'Falta la MERCADOPAGO_PUBLIC_KEY del panel de credenciales de Mercado Pago.';
+        }
+
+        if (hash_equals(trim((string) $this->accessToken()), (string) $this->llavePublica())) {
+            return 'La MERCADOPAGO_PUBLIC_KEY es igual al Access Token. Copia la Public Key real (no el token) desde Credenciales de producción.';
+        }
+
+        if (! $this->llavePublicaDelMismoAmbiente()) {
+            return 'La Public Key es de otro ambiente que el Access Token (una es de prueba y la otra no).';
+        }
+
+        if (! (bool) Ajuste::first()?->web_mercadopago_activa) {
+            return 'El interruptor de tarjeta de Admin → Ajustes está desactivado.';
+        }
+
+        if (! $this->sePuedeOfrecer()) {
+            return 'La tarjeta no está disponible ahora mismo: revisa la credencial.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Cobra con el token de tarjeta que generó el Brick de Mercado Pago en el
+     * navegador del cliente, sin sacarlo de la tienda. El número de tarjeta nunca
+     * pasa por este servidor: lo tokeniza el iframe de Mercado Pago, así que la
+     * tienda sigue sin ver datos sensibles.
+     *
+     * El monto se lee del intento y nunca del request: si viniera del navegador,
+     * cualquiera pagaría S/ 1.00 por un pedido de S/ 287.56.
+     *
+     * @param  array{token?:string, payment_method_id?:string, issuer_id?:int|string|null, installments?:int|string|null, email?:string|null}  $entrada
+     * @return array<string, mixed>
+     */
+    public function crearPagoDirecto(IntentoPagoMercadoPago $intento, array $entrada): array
+    {
+        $token = trim((string) ($entrada['token'] ?? ''));
+
+        if ($token === '') {
+            throw new RuntimeException('El formulario de tarjeta no envió ningún token de Mercado Pago.');
+        }
+
+        $correo = trim((string) ($entrada['email'] ?? ''));
+
+        // Identificación del titular: MP la usa para el antifraude y para
+        // elevar la tasa de aprobación. Se envía cuando el Brick o el
+        // checkout la tienen (DNI/CE), sin inventarla si falta.
+        $pagador = ['email' => $correo !== '' ? $correo : 'cliente@galy.pe'];
+
+        $nombre = trim((string) ($entrada['first_name'] ?? $entrada['nombre'] ?? ''));
+        if ($nombre !== '') {
+            $pagador['first_name'] = $nombre;
+        }
+
+        $apellido = trim((string) ($entrada['last_name'] ?? $entrada['apellido'] ?? ''));
+        if ($apellido !== '') {
+            $pagador['last_name'] = $apellido;
+        }
+
+        $identificacion = $entrada['identification'] ?? null;
+        if (is_array($identificacion) && ! empty($identificacion['number'])) {
+            $pagador['identification'] = [
+                'type' => strtoupper((string) ($identificacion['type'] ?? 'DNI')),
+                'number' => (string) $identificacion['number'],
+            ];
+        } elseif (! empty($entrada['dni'])) {
+            $pagador['identification'] = [
+                'type' => 'DNI',
+                'number' => (string) $entrada['dni'],
+            ];
+        }
+
+        // Teléfono del titular: MP lo usa para contacto y antifraude.
+        $telefono = trim((string) ($entrada['phone'] ?? $entrada['telefono'] ?? ''));
+        if ($telefono !== '') {
+            $numero = preg_replace('/[^0-9]/', '', $telefono);
+            $pagador['phone'] = [
+                'area_code' => '51',
+                'number' => $numero,
+            ];
+        }
+
+        // Dirección de facturación: mejora la tasa de aprobación.
+        $direccion = $entrada['address'] ?? $entrada['direccion'] ?? null;
+        if (is_array($direccion)) {
+            $calle = trim((string) ($direccion['street_name'] ?? $direccion['calle'] ?? ''));
+            $pagador['address'] = array_filter([
+                'street_name' => $calle !== '' ? $calle : null,
+                'street_number' => isset($direccion['street_number']) ? (string) $direccion['street_number'] : null,
+                'zip_code' => (string) ($direccion['zip_code'] ?? $direccion['codigo_postal'] ?? ''),
+            ], fn ($v) => $v !== null && $v !== '');
+        } elseif (is_string($direccion) && trim($direccion) !== '') {
+            $pagador['address'] = ['street_name' => trim($direccion)];
+        }
+
+        $pago = [
+            'token' => $token,
+            'transaction_amount' => round((float) $intento->monto, 2),
+            'installments' => max(1, (int) ($entrada['installments'] ?? 1)),
+            'payment_method_id' => trim((string) ($entrada['payment_method_id'] ?? '')),
+            'payer' => $pagador,
+            'external_reference' => $intento->referencia_externa,
+            'description' => 'Referencia de pago '.$intento->referencia_externa,
+            'statement_descriptor' => config('services.mercadopago.statement_descriptor'),
+        ];
+
+        $emisor = (int) ($entrada['issuer_id'] ?? 0);
+
+        if ($emisor > 0) {
+            $pago['issuer_id'] = $emisor;
+        }
+
+        // Con una URL local Mercado Pago no puede avisar de nada, y un campo que
+        // no puede alcanzar es un error 400 en la cara del cliente.
+        if (! $this->urlBaseEsLocal()) {
+            $pago['notification_url'] = $this->urlDeWebhook();
+        }
+
+        // La clave de idempotencia es la huella del cuerpo, no un valor al azar:
+        // si el navegador reintenta el MISMO cobro porque la respuesta se perdió,
+        // Mercado Pago devuelve el pago original en lugar de cobrar dos veces. Un
+        // tarjeta distinta cambia el token, y con él la huella, así que un pago
+        // rechazado sí se puede volver a intentar.
+        $respuesta = $this->request(12, 1)
+            ->withHeaders(['X-Idempotency-Key' => hash('sha256', json_encode($pago))])
+            ->post($this->apiUrl().'/v1/payments', $pago);
+
+        if ($respuesta->failed()) {
+            if (in_array($respuesta->status(), [401, 403], true)) {
+                $this->bloquearPorRechazo();
+
+                throw new RuntimeException(
+                    'Mercado Pago rechazó el pago con tarjeta (HTTP '.$respuesta->status().'). '
+                    .mb_substr((string) $respuesta->body(), 0, 400)
+                );
+            }
+
+            // Una tarjeta rechazada NO es un fallo de la tienda: es el resultado
+            // más común del formulario. Mercado Pago la devuelve con HTTP 400 y,
+            // según el motivo, el cuerpo ni siquiera trae el pago. Si aquí se
+            // lanzara la excepción, el intento quedaría «esperando», el pedido sin
+            // nota y el cliente sin saber que puede probar otra tarjeta.
+            $rechazo = $this->pagoDeRechazo($intento, $respuesta->json());
+
+            if ($rechazo !== null) {
+                return $rechazo;
+            }
+
+            throw new RuntimeException(
+                'Mercado Pago no aceptó el pago con tarjeta (HTTP '.$respuesta->status().'). '
+                .mb_substr((string) $respuesta->body(), 0, 400)
+            );
+        }
+
+        $devuelto = $respuesta->json();
+
+        if (! is_array($devuelto)) {
+            throw new RuntimeException('Mercado Pago devolvió una respuesta ilegible para el pago con tarjeta.');
+        }
+
+        return $devuelto;
+    }
+
+    /**
+     * El pago que hay que aplicar al intento cuando la creación respondió mal:
+     * el propio cuerpo cuando Mercado Pago ya lo devolvió formado, y si no, el
+     * último pago registrado para esta referencia. `null` significa que no hay
+     * cobro ninguno, que es el caso raro de verdad: un payload rechazado antes de
+     * crear el pago.
+     *
+     * @param  array<string, mixed>|null  $cuerpo
+     * @return array<string, mixed>|null
+     */
+    private function pagoDeRechazo(IntentoPagoMercadoPago $intento, ?array $cuerpo): ?array
+    {
+        if (isset($cuerpo['id'], $cuerpo['status']) && is_string($cuerpo['status'])) {
+            return $cuerpo;
+        }
+
+        $pago = $this->buscarUltimoPago($intento->referencia_externa);
+
+        return is_array($pago) && filled($pago['status'] ?? null) ? $pago : null;
     }
 
     /**
@@ -368,9 +609,9 @@ class MercadoPagoService
      * Último pago asociado a una referencia externa. Se usa al volver de
      * Mercado Pago, cuando el webhook todavía no llegó (p. ej. en desarrollo).
      */
-    public function buscarUltimoPago(string $referencia): ?array
+    public function buscarUltimoPago(string $referencia, int $segundos = 12, int $intentos = 2): ?array
     {
-        $respuesta = $this->request()->get($this->apiUrl().'/v1/payments/search', [
+        $respuesta = $this->request($segundos, $intentos)->get($this->apiUrl().'/v1/payments/search', [
             'external_reference' => $referencia,
             'sort' => 'date_created',
             'criteria' => 'desc',
@@ -384,6 +625,22 @@ class MercadoPagoService
         $pagos = $respuesta->json('results') ?? [];
 
         return is_array($pagos) && isset($pagos[0]) && is_array($pagos[0]) ? $pagos[0] : null;
+    }
+
+    /**
+     * Un timeout no dice si el cobro llegó a Mercado Pago. Antes de afirmar
+     * «no se cobró» se pregunta por la referencia con un margen corto, para no
+     * asustar al cliente ni dejarlo pagar dos veces por el mismo pedido.
+     */
+    public function pagoTrasFalloDeRed(IntentoPagoMercadoPago $intento): ?array
+    {
+        try {
+            return $this->buscarUltimoPago($intento->referencia_externa, 6, 1);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return null;
+        }
     }
 
     /**
@@ -497,7 +754,17 @@ class MercadoPagoService
             $revisados++;
             $estadoAnterior = $intento->estado;
 
-            $this->aplicarPagoAlIntento($intento, $this->buscarUltimoPago($intento->referencia_externa));
+            try {
+                $this->aplicarPagoAlIntento($intento, $this->buscarUltimoPago($intento->referencia_externa));
+            } catch (\Throwable $exception) {
+                // Un solo intento roto no puede tumbar el resto de la cola ni
+                // hacer fallar el comando programado en cada pasada: queda en
+                // su estado, se registra el error y se reintenta la próxima
+                // vez que corra el reconciliador.
+                report($exception);
+
+                continue;
+            }
 
             if ($estadoAnterior !== IntentoPagoMercadoPago::ESTADO_CONFIRMADO
                 && $intento->estado === IntentoPagoMercadoPago::ESTADO_CONFIRMADO) {
@@ -591,7 +858,7 @@ class MercadoPagoService
                     .($intento->mercadopago_payment_id ? ' (ID '.$intento->mercadopago_payment_id.')' : '')
                     .'. Se verificó el cobro de '.$montoCobrado.'. El pedido pasó de '.$estadoAnterior.' a Pagado.',
                 $estadoAnterior,
-                $orden->estado_orden
+                $orden->estado_orden ?: 'En proceso'
             );
         });
     }
@@ -615,10 +882,18 @@ class MercadoPagoService
             return;
         }
 
+        // La base GALY declara `estado_nuevo` como NOT NULL aunque la nota no
+        // cambie la etapa del pedido (un rechazo de tarjeta, por ejemplo). Sin
+        // este respaldo el INSERT explotaba y el cliente veía una pantalla 500
+        // justo después de pagar. Se repite el estado actual: el historial
+        // refleja que hubo una nota, no un cambio de etapa.
+        $estadoFinal = $estadoNuevo ?: (Orden::find($pedidoId)?->estado_orden ?: 'En proceso');
+        $estadoFinal = $estadoFinal ?: 'En proceso';
+
         $historial = new PedidoHistorial;
         $historial->orden_id = $pedidoId;
         $historial->estado_anterior = $estadoAnterior;
-        $historial->estado_nuevo = $estadoNuevo;
+        $historial->estado_nuevo = $estadoFinal;
         $historial->fecha = now()->toDateString();
         $historial->hora = now()->toTimeString();
         $historial->nota = $nota;
@@ -759,6 +1034,63 @@ class MercadoPagoService
         ]);
     }
 
+    /**
+     * Intento que va a cobrar el brick de tarjeta.
+     *
+     * Reutiliza el intento vigente del pedido en vez de abrir uno nuevo en cada
+     * clic: dos pestañas con el mismo pedido serían dos referencias vivas, y el
+     * cliente podría pagar en la que la tienda ya dio por perdida. Se abandona ese
+     * intento cuando cambió el total (un cupón, un reembarque), porque el cobro se
+     * valida al céntimo contra el intento y no contra lo que muestra el navegador.
+     *
+     * No le pide una preferencia a Mercado Pago: en el brick el formulario vive
+     * dentro de la tienda, así que no hay URL de checkout que generar.
+     */
+    public function intentoParaBrick(Orden $orden): IntentoPagoMercadoPago
+    {
+        $monto = round((float) $orden->total, 2);
+        $divisa = strtoupper((string) ($orden->divisa ?: config('services.mercadopago.currency')));
+
+        $vigente = IntentoPagoMercadoPago::where('pedido_id', $orden->id)
+            ->where('estado', IntentoPagoMercadoPago::ESTADO_ESPERANDO)
+            ->where('expira_at', '>', now())
+            ->whereNull('mercadopago_payment_id')
+            ->latest('created_at')
+            ->first();
+
+        if ($vigente
+            && round((float) $vigente->monto, 2) === $monto
+            && strtoupper((string) $vigente->divisa) === $divisa) {
+            return $vigente;
+        }
+
+        if ($vigente) {
+            $vigente->estado = IntentoPagoMercadoPago::ESTADO_EXPIRADO;
+            $vigente->save();
+        }
+
+        $items = $orden->detalles()->with('producto')->get()->map(fn ($detalle) => [
+            'producto_id' => (int) $detalle->producto_id,
+            'nombre' => $detalle->producto?->nombre,
+            'cantidad' => (int) $detalle->cantidad,
+            'precio' => (float) $detalle->precio,
+        ])->all();
+
+        return IntentoPagoMercadoPago::create([
+            'usuario_id' => (int) $orden->usuario_id,
+            'firma_carrito' => hash('sha256', json_encode([(int) $orden->usuario_id, $items, $monto])),
+            'monto' => $monto,
+            'divisa' => $divisa,
+            'estado' => IntentoPagoMercadoPago::ESTADO_ESPERANDO,
+            'direccion_id' => $orden->direccion_id,
+            'direccion_envio' => (string) $orden->direccion_envio,
+            'modalidad_entrega' => (string) $orden->modalidad_entrega,
+            'items' => $items,
+            'pedido_id' => $orden->id,
+            'expira_at' => now()->addMinutes($this->minutosVigencia()),
+        ]);
+    }
+
     public function minutosVigencia(): int
     {
         return max(5, (int) config('services.mercadopago.checkout_ttl_minutes', 30));
@@ -830,25 +1162,144 @@ class MercadoPagoService
             ];
         }
 
-        $prueba = Cache::remember('mercadopago.enlace-publico', 300, function () use ($url) {
-            try {
-                $estado = Http::timeout(6)->withoutRedirecting()->get($url)->status();
+        // La tienda no puede comprobarse pidiéndose una página a sí misma: «php artisan
+        // serve» atiende una petición a la vez, así que esa prueba quedaría en cola
+        // detrás de la propia pantalla del panel y siempre daría error, con túnel vivo
+        // o sin él. Lo que sí se puede mirar desde fuera es si Cloudflare sigue
+        // dando nombre al túnel, que es exactamente como se muere.
+        if (! $this->hostDelTunelVive($host)) {
+            return [
+                'ok' => false,
+                'url' => $url,
+                'detalle' => 'Cloudflare ya no responde por ese nombre: el túnel se cerró y hay que volver a abrirlo.',
+            ];
+        }
 
-                return ['ok' => $estado < 500, 'detalle' => 'La tienda respondió HTTP '.$estado.'.'];
-            } catch (Throwable $e) {
-                return ['ok' => false, 'detalle' => mb_substr($e->getMessage(), 0, 140)];
-            }
-        });
-
-        return ['ok' => $prueba['ok'], 'url' => $url, 'detalle' => $prueba['detalle']];
+        return [
+            'ok' => true,
+            'url' => $url,
+            'detalle' => 'El túnel sigue registrado y apunta a esta PC.',
+        ];
     }
 
-    private function request(): \Illuminate\Http\Client\PendingRequest
+    /**
+     * Su propio método para que las pruebas no dependan del DNS real de la máquina.
+     */
+    protected function hostDelTunelVive(string $host): bool
+    {
+        return checkdnsrr($host, 'A')
+            || checkdnsrr($host, 'AAAA')
+            || checkdnsrr($host, 'CNAME');
+    }
+
+    /**
+     * El servidor de la tienda corta las peticiones web a los 30 s: dos
+     * intentos de 20 s ya no dejan margen y el cliente veía un 500 en pleno
+     * cobro. Los POST que crean dinero (preferencia y pago) van con un solo
+     * intento; el resto conserva el reintento para los webhooks y la
+     * reconciliación, que corren fuera de una petición del navegador.
+     */
+    /**
+     * Marcas de tarjeta que Mercado Pago tiene activas para esta cuenta.
+     * Se consultan a la API y se cachean 1 h; si falla, se devuelven las
+     * cuatro históricas (Visa, Mastercard, Amex, Diners) para no dejar la
+     * franja vacía ni anunciar marcas que no se pueden usar.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function marcasTarjetaActivas(): array
+    {
+        $respaldo = [
+            ['img' => 'assets/img/pagos/visa.svg', 'alt' => 'Visa'],
+            ['img' => 'assets/img/pagos/mastercard.svg', 'alt' => 'Mastercard'],
+            ['texto' => 'AMEX', 'fondo' => '#006fcf', 'alt' => 'American Express'],
+            ['texto' => 'DINERS', 'fondo' => '#26364b', 'alt' => 'Diners Club'],
+        ];
+
+        if (! $this->habilitado()) {
+            return $respaldo;
+        }
+
+        $mapa = [
+            'visa' => ['img' => 'assets/img/pagos/visa.svg', 'alt' => 'Visa'],
+            'master' => ['img' => 'assets/img/pagos/mastercard.svg', 'alt' => 'Mastercard'],
+            'amex' => ['texto' => 'AMEX', 'fondo' => '#006fcf', 'alt' => 'American Express'],
+            'diners' => ['texto' => 'DINERS', 'fondo' => '#26364b', 'alt' => 'Diners Club'],
+            'discover' => ['texto' => 'DISCOVER', 'fondo' => '#ff6000', 'alt' => 'Discover'],
+            'jcb' => ['texto' => 'JCB', 'fondo' => '#003399', 'alt' => 'JCB'],
+            'maestro' => ['texto' => 'MAESTRO', 'fondo' => '#0099df', 'alt' => 'Maestro'],
+            'elo' => ['texto' => 'ELO', 'fondo' => '#000000', 'alt' => 'Elo'],
+            'cabal' => ['texto' => 'CABAL', 'fondo' => '#00a650', 'alt' => 'Cabal'],
+            'naranja' => ['texto' => 'NARANJA', 'fondo' => '#ff6600', 'alt' => 'Naranja'],
+            'cencosud' => ['texto' => 'CENCOSUD', 'fondo' => '#e30613', 'alt' => 'Cencosud'],
+        ];
+
+        try {
+            $marcas = \Illuminate\Support\Facades\Cache::remember(
+                'mercadopago.marcas.tarjeta',
+                3600,
+                function () use ($mapa) {
+                    $respuesta = $this->request(8, 1)->get($this->apiUrl().'/v1/payment_methods');
+
+                    if (! $respuesta->successful()) {
+                        return null;
+                    }
+
+                    $metodos = $respuesta->json();
+                    if (! is_array($metodos)) {
+                        return null;
+                    }
+
+                    $resultado = [];
+                    $vistos = [];
+
+                    foreach ($metodos as $metodo) {
+                        if (! is_array($metodo)) {
+                            continue;
+                        }
+
+                        $tipo = (string) ($metodo['payment_type_id'] ?? '');
+                        if (! in_array($tipo, ['credit_card', 'debit_card'], true)) {
+                            continue;
+                        }
+
+                        $estado = (string) ($metodo['status'] ?? 'active');
+                        if ($estado !== '' && $estado !== 'active') {
+                            continue;
+                        }
+
+                        $id = strtolower((string) ($metodo['id'] ?? ''));
+                        if ($id === '' || ! isset($mapa[$id])) {
+                            continue;
+                        }
+
+                        $alt = $mapa[$id]['alt'];
+                        if (isset($vistos[$alt])) {
+                            continue;
+                        }
+                        $vistos[$alt] = true;
+                        $resultado[] = $mapa[$id];
+                    }
+
+                    return $resultado === [] ? null : $resultado;
+                }
+            );
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return $respaldo;
+        }
+
+        return is_array($marcas) && $marcas !== [] ? $marcas : $respaldo;
+    }
+
+    private function request(int $segundos = 12, int $intentos = 2): \Illuminate\Http\Client\PendingRequest
     {
         return Http::withToken((string) $this->accessToken())
             ->acceptJson()
-            ->timeout(20)
-            ->retry(2, 250, throw: false);
+            ->connectTimeout(5)
+            ->timeout($segundos)
+            ->retry($intentos, 250, throw: false);
     }
 
     private function apiUrl(): string

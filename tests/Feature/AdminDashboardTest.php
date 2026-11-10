@@ -66,19 +66,19 @@ class AdminDashboardTest extends TestCase
 
         $this->get('/home')
             ->assertOk()
-            ->assertSee('Administración web · App GALY')
+            ->assertSee('ADMINISTRACIÓN · APP GALY')
             ->assertSee('Accesos rápidos')
             ->assertSee('Nuevo producto')
             ->assertSee('Revisar pedidos')
             ->assertSee('Nueva oferta')
             ->assertSee('Nuevo banner')
             ->assertSee('href="' . route('admin.productos.create') . '"', false)
-            ->assertSee('Estadísticas de la tienda')
+            ->assertSee('Analítica de la tienda')
             ->assertSee('col-12 col-lg-6', false)
             ->assertSee('col-12 col-md-6 col-xl-4', false);
     }
 
-    public function test_galy_admin_dashboard_shows_shared_panel_link_and_can_renew_a_missing_token(): void
+    public function test_galy_admin_dashboard_shows_the_shared_panel_link(): void
     {
         $admin = $this->actingAsDashboardAdmin();
         $admin->forceFill(['galy_user_id' => 12, 'galy_es_admin' => true])->save();
@@ -87,9 +87,9 @@ class AdminDashboardTest extends TestCase
         $this->get('/home')
             ->assertOk()
             ->assertSee('Administrador compartido de GALY')
-            ->assertSee('Gestiona los productos, pedidos, inventario, banners y clientes compartidos con la app GALY.')
-            ->assertSee('href="' . route('web.login', ['galy' => 'renew']) . '"', false)
-            ->assertSee('Renovar sesión GALY');
+            ->assertSee('Gestiona productos, pedidos, inventario, banners y clientes compartidos con la app Android.')
+            ->assertSee('href="' . route('admin.galy-panel') . '"', false)
+            ->assertSee('Abrir administrador GALY');
     }
 
     public function test_galy_admin_dashboard_renders_the_panel_link_when_a_session_token_exists(): void
@@ -111,7 +111,7 @@ class AdminDashboardTest extends TestCase
         $this->get('/home')
             ->assertOk()
             ->assertSee('Conecta tu administrador con GALY')
-            ->assertSee('Vuelve a iniciar sesión aquí con el correo y la contraseña de tu cuenta GALY.')
+            ->assertSee('Inicia sesión aquí con tu cuenta GALY para vincularla. GALY debe confirmar que eres administrador.')
             ->assertSee('href="' . route('web.login', ['galy' => 'connect']) . '"', false)
             ->assertDontSee('Accesos rápidos')
             ->assertSee('Conectar mi cuenta GALY');
@@ -121,21 +121,22 @@ class AdminDashboardTest extends TestCase
     {
         $admin = $this->actingAsDashboardAdmin();
         $admin->forceFill(['galy_user_id' => 12, 'galy_es_admin' => true])->save();
-        Config::set('galy.api_url', 'http://localhost/galy_api');
+        Config::set('galy.admin_api_url', 'http://localhost/galy-admin/api/v1');
         Config::set('galy.public_url', 'http://localhost/galy-admin');
+        Config::set('galy.sso_secret', 'secret-de-prueba-para-firmas-sso');
         Http::fake([
-            'http://localhost/galy_api/create_admin_web_link.php' => Http::response([
+            'http://localhost/galy-admin/api/v1/auth/web-sso' => Http::response([
                 'success' => true,
-                'url' => 'admin_web.php?section=productos&admin_token=temporary-token',
+                'token' => 'temporary-token',
             ]),
         ]);
 
-        $this->withSession(['galy_admin_token' => 'valid-admin-token'])
-            ->get(route('admin.galy-panel'))
-            ->assertRedirect('http://localhost/galy-admin/admin_web.php?section=productos&admin_token=temporary-token');
+        $this->get(route('admin.galy-panel'))
+            ->assertRedirect('http://localhost/galy-admin/login?sso_token=temporary-token');
 
-        Http::assertSent(fn($request) => $request->url() === 'http://localhost/galy_api/create_admin_web_link.php'
-            && $request->hasHeader('X-Admin-Token', 'valid-admin-token'));
+        Http::assertSent(fn ($request) => $request->url() === 'http://localhost/galy-admin/api/v1/auth/web-sso'
+            && $request['user_id'] === 12
+            && is_string($request['signature'] ?? null));
     }
 
     public function test_non_galy_admin_cannot_open_the_shared_panel(): void

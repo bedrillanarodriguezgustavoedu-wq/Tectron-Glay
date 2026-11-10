@@ -80,7 +80,7 @@ Quedan 13 claves por completar (están listadas al final del propio `.env`). Las
 | `APP_URL` | Nada arma URLs: correos sin link, y el retorno de Mercado Pago apunta a `CAMBIA-ESTA-DIRECCION.pe`. Se ve en `/admin/pagos` con el aviso rojo. |
 | `DB_USERNAME` / `DB_PASSWORD` | La tienda abre con "SQLSTATE[…] Access denied". |
 | `MERCADOPAGO_ACCESS_TOKEN` | El carrito muestra Tarjeta desactivada. Sin token no hay cobro. |
-| `MERCADOPAGO_WEBHOOK_SECRET` | El cobro igual llega, pero cualquiera podría POSTEAR fingiendo un pago. No lo dejes vacío. |
+| `MERCADOPAGO_WEBHOOK_SECRET` | El webhook rechaza todas las notificaciones y el pago solo se confirma cuando el cliente vuelve a la tienda. Copia el secreto firmante. |
 | `MAIL_*` | El pedido se crea, el cliente no recibe el correo. |
 
 `GALY_IMAGES_PATH` va **vacío a propósito**: `config/galy.php` usa entonces `public/galy_api/img`, que es la carpeta que el propio dominio sirve.
@@ -92,7 +92,7 @@ cd $RUTA
 composer install --no-dev --optimize-autoloader   # solo si el ZIP salió sin vendor/
 ```
 
-Extensiones de PHP que sí hacen falta (con `php -m` las ves): `ctype filter hash mbstring openssl session tokenizer curl fileinfo json pdo_mysql`. **`gd` e `intl` no se usan en este proyecto** — no las pidas al soporte del hosting.
+Extensiones de PHP que sí hacen falta (con `php -m` las ves): `ctype filter hash mbstring openssl session tokenizer curl fileinfo json pdo_mysql iconv`. **`gd` e `intl` no se usan en este proyecto** — no las pidas al soporte del hosting. `iconv` la pide `bacon/bacon-qr-code` (el QR del pago con tarjeta en el celular) y el QR se pinta como SVG, así que sigue sin hacer falta `gd`.
 
 PHP tiene que ser **8.3 o superior** (`php -v`). En cPanel se cambia en *MultiPHP Manager*.
 
@@ -173,7 +173,7 @@ Nada de esto es código, son datos:
 
 - `ajustes.direccion` dice "Av. Siempre Viva 123" y `telefono` "0998765432".
 - `color_primario` está vacío y `APP_NAME` ahora es `GALY` (por el `.env.production`).
-- Los "QR" de Yape y Plin **son la misma imagen** (900×1600, mismo hash): sube dos QR reales desde el panel de Ajustes.
-- `puntos_recojo` tiene 1 fila y su `provincia_id` está vacía, así que el carrito no muestra agencias.
+- Los QR de Yape y Plin **ya son dos imágenes distintas** (Yape 900×1600, Plin 644×920, hashes diferentes), subidas desde Ajustes. Lo que sí sigue igual es el número: `web_yape_numero` y `web_plin_numero` son 901095562, porque ambas cuentas corren sobre el mismo teléfono.
+- `puntos_recojo` tiene 1 fila («Galy xnovatec») y ya está ligada a la provincia **Lima (128)**, así que el carrito la muestra como agencia. Si el local es de otra provincia, cámbiala en `/admin`. Ojo: esto es un dato de tu base de esta PC; si el servidor arranca vacío, vuelve a estar vacío.
 - La app Android sigue cobrando por su propio camino (`galy_api`), que no se movió en este despliegue.
 - `GALY_API_URL` y `GALY_PUBLIC_URL` siguen apuntando a `localhost` porque `galy_api` y `galy-admin` son otras apps de esta PC, no parte de la tienda. Dos botones del panel dependen de ellos y van a fallar con "No se pudo conectar con el panel GALY": el enlace de acceso al panel antiguo y el cambio de estado de un ticket de soporte. Las fotos de la tienda **no** dependen de esas dos variables.

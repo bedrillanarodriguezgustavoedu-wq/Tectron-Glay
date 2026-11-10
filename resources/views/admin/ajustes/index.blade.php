@@ -1,13 +1,29 @@
 @extends('layouts.admin')
 
+@section('title', 'Ajustes del sistema · ' . ($ajuste->nombre ?? 'TECTRON'))
+
 @section('content')
-    <h1>Ajustes del sistema</h1>
-    <hr>
+    <div class="ga-page-head">
+        <div class="ga-page-head-main">
+            <div class="ga-eyebrow">Configuración</div>
+            <h1 class="ga-page-title">Ajustes del sistema</h1>
+            <p class="ga-page-sub">Datos de la tienda, divisas, medios de pago, reseñas y apariencia. Estos valores se usan en la web y en la app GALY.</p>
+        </div>
+        <div class="ga-head-actions">
+            <a href="{{ url('/') }}" target="_blank" rel="noopener" class="btn-ga-ghost">
+                <i class="bi bi-shop-window" aria-hidden="true"></i> Ver tienda
+            </a>
+        </div>
+    </div>
+
     <div class="row">
         <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    <h4>Configuraciones del sistema</h4>
+            <div class="ga-surface">
+                <div class="ga-card-head">
+                    <div>
+                        <h2>Configuraciones del sistema</h2>
+                        <p>Los cambios se aplican al guardar</p>
+                    </div>
                 </div>
                 <div class="card-body">
                     <form action="{{ url('/admin/ajustes/create') }}" method="POST" enctype="multipart/form-data">

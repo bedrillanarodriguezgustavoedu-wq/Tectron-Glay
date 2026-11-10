@@ -4,9 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $ajuste->nombre ?? 'Sistema de Ecommerce' }}</title>
+    <title>@yield('title', ($ajuste->nombre ?? 'Sistema de Ecommerce'))</title>
 
-
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <link rel="shortcut icon" href="./assets/compiled/svg/favicon.svg" type="image/x-icon">
     <link rel="shortcut icon"
@@ -18,7 +20,9 @@
     <link rel="stylesheet" href="{{ asset('/assets/compiled/css/app.css') }}">
     <link rel="stylesheet" href="{{ asset('/assets/compiled/css/app-dark.css') }}">
     <link rel="stylesheet" href="{{ asset('/assets/compiled/css/iconly.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <link rel="stylesheet" href="{{ asset('/assets/css/galy-admin.css') }}">
+    {{-- ApexCharts local: disponible antes de los scripts de las vistas --}}
+    <script src="{{ url('/assets/extensions/apexcharts/apexcharts.min.js') }}"></script>
 </head>
 
 <body>
@@ -31,10 +35,12 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="logo">
                             <a href="{{ route('home') }}" class="text-decoration-none" aria-label="Ir al inicio de administración">
-                                <span class="fw-bold">TECTRON</span>
-                                <small class="d-block text-muted" style="font-size:.62rem; letter-spacing:.08em;">ADMINISTRACIÓN · APP GALY</small>
+                                <span class="ga-brand-mark"><i class="bi bi-bag-heart-fill" aria-hidden="true"></i></span>
+                                <span>
+                                    <span class="fw-bold">TECTRON</span>
+                                    <small class="d-block text-muted">ADMINISTRACIÓN · APP GALY</small>
+                                </span>
                             </a>
-
                         </div>
                         <div class="theme-toggle d-flex gap-2  align-items-center mt-2">
                             <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -72,9 +78,14 @@
                         </div>
                     </div>
                 </div>
+                <div class="ga-sidebar-search">
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <label class="visually-hidden" for="ga-sidebar-filter">Buscar en el menú</label>
+                    <input type="search" id="ga-sidebar-filter" placeholder="Buscar en el menú…" autocomplete="off">
+                </div>
                 <div class="sidebar-menu">
                     <ul class="menu">
-                        <li class="sidebar-title">Menu</li>
+                        <li class="sidebar-title">Menú</li>
                         @can('Ver dashboard del Admin')
                             <li class="sidebar-item {{ request()->is('admin', 'home') ? 'active' : '' }}">
                                 <a href="{{ route('home') }}" class='sidebar-link' @if (request()->is('admin', 'home')) aria-current="page" @endif>
@@ -187,9 +198,30 @@
                                 </a>
                             </li>
                             <li class="sidebar-item {{ request()->is('admin/pagos*') ? 'active' : '' }}">
+                                @php
+                                    // Mismo criterio que el contador «por revisar» de /admin/pagos: si el
+                                    // menú prometiera otro número, el dueño perdería un pago. Se salta el
+                                    // conteo si las tablas todavía no existen, porque en un servidor recién
+                                    // migrado el panel abriría con un error en cada página.
+                                    $comprobantesPorRevisar = \Illuminate\Support\Facades\Schema::hasTable('pedidos')
+                                        && \Illuminate\Support\Facades\Schema::hasTable('pedido_pagos_manuales')
+                                            ? \App\Models\Orden::query()
+                                                ->whereIn(\Illuminate\Support\Facades\DB::raw('LOWER(metodo_pago)'), ['yape', 'plin', 'bcp'])
+                                                ->whereIn(\Illuminate\Support\Facades\DB::raw('LOWER(estado_pago)'), ['pendiente', 'pendiente de pago'])
+                                                ->whereHas('pagoManual', fn ($pagos) => $pagos
+                                                    ->where('estado', 'comprobante_enviado')
+                                                    ->whereNotNull('comprobante_path')
+                                                    ->where('comprobante_path', '!=', ''))
+                                                ->count()
+                                            : 0;
+                                @endphp
                                 <a href="{{ route('admin.pagos.index') }}" class='sidebar-link'>
                                     <i class="bi bi-cash-stack"></i>
-                                    <span>Registro de pagos</span>
+                                    <span>Registro de pagos
+                                        @if ($comprobantesPorRevisar > 0)
+                                            <span class="badge text-bg-warning rounded-pill">{{ $comprobantesPorRevisar }}</span>
+                                        @endif
+                                    </span>
                                 </a>
                             </li>
                             <li class="sidebar-item {{ request()->is('admin/reseñas*') ? 'active' : '' }}  ">
@@ -402,13 +434,46 @@
 
                     </ul>
                 </div>
+                <div class="ga-sidebar-foot">
+                    <a href="{{ url('/') }}" target="_blank" rel="noopener">
+                        <i class="bi bi-shop-window" aria-hidden="true"></i>
+                        <span>Ver tienda en línea</span>
+                        <i class="bi bi-arrow-up-right ms-auto" aria-hidden="true"></i>
+                    </a>
+                    <small>TECTRON · Panel GALY</small>
+                </div>
             </div>
         </div>
         <div id="main">
-            <header class="mb-3">
-                <a href="#" class="burger-btn d-block d-xl-none">
-                    <i class="bi bi-justify fs-3"></i>
-                </a>
+            <header class="ga-topbar mb-4">
+                <div class="ga-topbar-left">
+                    <a href="#" class="burger-btn d-xl-none" aria-label="Abrir el menú">
+                        <i class="bi bi-list fs-4" aria-hidden="true"></i>
+                    </a>
+                    <div>
+                        <nav class="ga-breadcrumb" aria-label="Ubicación">
+                            <a href="{{ route('home') }}"><i class="bi bi-house-door" aria-hidden="true"></i> Inicio</a>
+                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                            <span class="ga-crumb-current">Panel</span>
+                        </nav>
+                        <h2 class="ga-topbar-title">Panel de administración</h2>
+                    </div>
+                </div>
+                <div class="ga-topbar-right">
+                    <a href="{{ url('/') }}" target="_blank" rel="noopener" class="btn-ga-ghost">
+                        <i class="bi bi-shop" aria-hidden="true"></i>
+                        <span>Ver tienda</span>
+                    </a>
+                    @auth
+                        <a href="{{ url('/admin/usuario/'.Auth::user()->id.'/perfil') }}" class="ga-topbar-user" title="Mi perfil">
+                            <span class="ga-avatar" aria-hidden="true">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr(Auth::user()->name, 0, 1)) }}</span>
+                            <span>
+                                <strong>{{ \Illuminate\Support\Str::limit(Auth::user()->name, 18) }}</strong>
+                                <small>{{ Auth::user()->roles->pluck('name')->first() ?? 'Usuario' }}</small>
+                            </span>
+                        </a>
+                    @endauth
+                </div>
             </header>
             <div class="page-content">
                 @if (session('mensaje'))
@@ -469,12 +534,8 @@
 
 
     <script src="{{ url('/assets/compiled/js/app.js') }}"></script>
+    <script src="{{ url('/assets/js/galy-admin.js') }}"></script>
 
-
-
-    <!-- Need: Apexcharts -->
-    <script src="{{ url('/assets/extensions/apexcharts/apexcharts.min.js') }}"></script>
-    <script src="{{ url('/assets/static/js/pages/dashboard.js') }}"></script>
 
     @if (($mensaje = Session::get('mensaje')) && ($icono = Session::get('icono')))
         <script>

@@ -68,12 +68,12 @@
                                     <div class="col-md-6">
                                         <label for="nombre_empresa" class="form-label fw-bold">Nombre de la Empresa</label>
                                         <input type="text" name="nombre_empresa" id="nombre_empresa" class="form-control"
-                                            value="{{ old('nombre_empresa', $settings->nombre_empresa ?? 'Tectron Galy') }}" required>
+                                            value="{{ old('nombre_empresa', $settings->nombre_empresa ?? 'GALY') }}" required>
                                     </div>
                                     <div class="col-md-6">
                                         <label for="copyright_texto" class="form-label fw-bold">Texto de Copyright</label>
                                         <input type="text" name="copyright_texto" id="copyright_texto" class="form-control"
-                                            value="{{ old('copyright_texto', $settings->copyright_texto ?? '© Copyright Tectron Galy. All Rights Reserved.') }}">
+                                            value="{{ old('copyright_texto', $settings->copyright_texto ?? '© Copyright GALY. All Rights Reserved.') }}">
                                     </div>
 
                                     <div class="col-12">

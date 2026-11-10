@@ -2,10 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Mail\ComprobanteRecibido;
+use App\Models\Ajuste;
 use App\Models\IntentoPagoMercadoPago;
 use App\Models\User;
+use App\Services\MercadoPagoService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -131,7 +135,7 @@ class AdminPaymentRegisterTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $this->get(route('admin.pagos.index', ['revision' => 'por_revisar']))
+        $respuesta = $this->get(route('admin.pagos.index', ['revision' => 'por_revisar']))
             ->assertOk()
             ->assertSee('Registro de pagos')
             ->assertSee('TEST-PAY-001')
@@ -141,6 +145,13 @@ class AdminPaymentRegisterTest extends TestCase
             ->assertSee('Verifica el abono en la app antes de confirmar.')
             ->assertSee('129.90')
             ->assertSee(route('admin.pedidos.comprobante', $pedidoId), false);
+
+        // El menú también lleva la cuenta: si el dueño no abre el registro de pagos,
+        // el badge del costado es lo único que le avisa de que hay un abono esperándolo.
+        $this->assertMatchesRegularExpression(
+            '/Registro de pagos\s*<span class="badge text-bg-warning rounded-pill">1<\/span>/',
+            $respuesta->getContent()
+        );
     }
 
     public function test_payment_register_separates_review_queue_from_waiting_and_legacy_records(): void
@@ -639,36 +650,95 @@ class AdminPaymentRegisterTest extends TestCase
     }
 
     /**
+     * Yape y Plin no tienen ningún aviso de abono: si el comprobante llega en
+     * silencio, el pago queda esperando en /admin/pagos hasta que alguien entre a
+     * mirarlo. Este correo es el único disparador que tiene la tienda.
+     */
+    public function test_la_tienda_se_entera_por_correo_cuando_suben_un_comprobante(): void
+    {
+        Mail::fake();
+
+        $ajuste = Ajuste::first() ?? Ajuste::create([
+            'nombre' => 'Tectron Galy',
+            'descripcion' => 'Tienda virtual de productos variados',
+            'sucursal' => 'Matriz',
+            'direccion' => 'Calle real 123',
+            'telefono' => '987654321',
+            'logo' => 'logos/tectron-galy.jpg',
+            'imagen_login' => 'imagenes_login/prueba.jpg',
+            'email' => 'dueno-tienda@example.test',
+            'divisa' => 'PEN',
+            'pagina_web' => 'www.tectrongaly.com',
+        ]);
+        $ajuste->update(['email' => 'dueno-tienda@example.test']);
+
+        $pedidoId = $this->createPendingManualPayment('pendiente', false);
+        $usuarioGalyId = \Illuminate\Support\Facades\DB::connection('galy')
+            ->table('usuarios')
+            ->where('email', 'cliente-pago@example.test')
+            ->value('id');
+        $cliente = User::factory()->create(['galy_user_id' => $usuarioGalyId]);
+
+        $this->actingAs($cliente)
+            ->post(route('web.pedidos.comprobante', $pedidoId), [
+                'comprobante' => UploadedFile::fake()->create('yape.png', 100, 'image/png'),
+            ])
+            ->assertRedirect(route('web.pedidos.confirmacion', $pedidoId));
+
+        Mail::assertSent(
+            ComprobanteRecibido::class,
+            function (ComprobanteRecibido $correo) use ($pedidoId): bool {
+                // Con Mail::fake() la vista nunca se renderiza sola: hay que pedirla
+                // aquí, si no un error dentro del correo pasaría desapercibido.
+                $html = $correo->render();
+
+                return $correo->hasTo('dueno-tienda@example.test')
+                    && (int) $correo->orden->id === $pedidoId
+                    && $correo->pago->estado === 'comprobante_enviado'
+                    && str_contains($correo->urlRevision, '/admin/pedido/'.$pedidoId)
+                    && str_contains($correo->envelope()->subject, 'Revisar abono: Yape del pedido #'.$pedidoId)
+                    && str_contains($html, 'Un cliente subió su comprobante')
+                    && str_contains($html, '129.90')
+                    && str_contains($html, 'No confirmes el pedido solo por la imagen');
+            }
+        );
+    }
+
+    /**
      * El tunel publico cambia de nombre solo y el .env se queda con el viejo. La
      * tienda sigue funcionando en local, pero el cliente que paga con tarjeta
      * vuelve a una direccion que no abre y eso antes no se veia en ningun panel.
      */
     public function test_the_panel_warns_when_the_public_return_address_no_longer_resolves(): void
     {
-        $this->abrirPanelDePagosConTarjeta('https://muerto-ahora.trycloudflare.com');
+        $this->abrirPanelDePagosConTarjeta('https://muerto-ahora.trycloudflare.com', tunelVivo: false);
 
-        Http::fake([
-            'muerto-ahora.trycloudflare.com/*' => Http::failedConnection('DNS resolution error'),
-        ]);
+        Http::fake();
 
         $this->get(route('admin.pagos.index'))
             ->assertOk()
             ->assertSee('El enlace de retorno está caído')
-            ->assertSee('No se perdió ningún cobro');
+            ->assertSee('No se perdió ningún cobro')
+            ->assertSee('Cloudflare ya no responde por ese nombre');
+
+        // Pedirse una página a sí misma con «artisan serve» queda en cola detrás de
+        // la pantalla que pregunta, así que el panel jamás puede hacer esa prueba.
+        Http::assertNothingSent();
     }
 
     public function test_the_panel_shows_the_return_address_quietly_while_it_still_responds(): void
     {
-        $this->abrirPanelDePagosConTarjeta('https://vivo-ahora.trycloudflare.com');
+        $this->abrirPanelDePagosConTarjeta('https://vivo-ahora.trycloudflare.com', tunelVivo: true);
 
-        Http::fake([
-            'vivo-ahora.trycloudflare.com/*' => Http::response('ok', 302),
-        ]);
+        Http::fake();
 
         $this->get(route('admin.pagos.index'))
             ->assertOk()
             ->assertSee('https://vivo-ahora.trycloudflare.com/pago/tarjeta/retorno', false)
+            ->assertSee('El túnel sigue registrado')
             ->assertDontSee('está caído');
+
+        Http::assertNothingSent();
     }
 
     public function test_a_return_address_pointing_at_this_pc_is_reported_as_unusable(): void
@@ -685,7 +755,7 @@ class AdminPaymentRegisterTest extends TestCase
         Http::assertNothingSent();
     }
 
-    private function abrirPanelDePagosConTarjeta(string $urlBase): void
+    private function abrirPanelDePagosConTarjeta(string $urlBase, ?bool $tunelVivo = null): void
     {
         $role = Role::firstOrCreate(['name' => 'ADMINISTRADOR', 'guard_name' => 'web']);
         $role->givePermissionTo(Permission::firstOrCreate([
@@ -703,6 +773,21 @@ class AdminPaymentRegisterTest extends TestCase
             'services.mercadopago.url_base' => $urlBase,
         ]);
         Cache::forget('mercadopago.enlace-publico');
+
+        if ($tunelVivo !== null) {
+            // El estado del tunel se decide por DNS; en las pruebas se dice a mano
+            // para que no dependan de que el DNS de esta PC esté funcionando.
+            $this->app->instance(MercadoPagoService::class, new class($tunelVivo) extends MercadoPagoService {
+                public function __construct(private bool $vive)
+                {
+                }
+
+                protected function hostDelTunelVive(string $host): bool
+                {
+                    return $this->vive;
+                }
+            });
+        }
     }
 
     private function paymentAdmin(): User

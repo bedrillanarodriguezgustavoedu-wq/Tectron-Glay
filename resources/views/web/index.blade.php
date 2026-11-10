@@ -141,6 +141,7 @@
         }
     </style>
 
+    <div class="g-home-hero">
     @if ($banners->isNotEmpty())
         <div id="heroCarousel" class="carousel slide mb-4" style="--home-slider-height: {{ max(300, min(900, (int) ($ajuste->home_slider_altura ?? 520))) }}px;" data-bs-ride="carousel" data-bs-interval="{{ $ajuste->home_slider_velocidad ?? 5000 }}">
             @if ($banners->count() > 1)
@@ -161,20 +162,25 @@
                         }
                     @endphp
                     <div class="carousel-item {{ $index === 0 ? 'active' : '' }}">
-                        <a href="{{ $bannerLink }}" class="shared-banner-link text-decoration-none">
+                        <div class="shared-banner-link text-decoration-none">
                             <img src="{{ $banner->image_url }}" class="shared-banner-image" alt="{{ $banner->titulo }}">
+                            <a href="{{ $bannerLink }}" class="shared-banner-hit" aria-label="{{ $banner->titulo ?: 'Ver ofertas' }}"></a>
                             <div class="shared-banner-overlay">
                                 <div class="shared-banner-copy">
+                                    <span class="g-hero-eyebrow"><i class="bi bi-lightning-charge-fill"></i> Oferta de la semana</span>
                                     @if ($banner->titulo)
                                         <h1>{{ $banner->titulo }}</h1>
                                     @endif
                                     @if ($banner->subtitulo)
                                         <p>{{ $banner->subtitulo }}</p>
                                     @endif
-                                    <span class="btn btn-light rounded-pill fw-bold mt-3 py-2">Ver catálogo <i class="bi bi-arrow-right ms-1"></i></span>
+                                    <div class="g-hero-cta">
+                                        <a href="{{ $bannerLink }}" class="btn btn-light fw-bold">Comprar ahora <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <a href="{{ route('web.ofertas') }}" class="btn btn-outline-light">Ver ofertas</a>
+                                    </div>
                                 </div>
                             </div>
-                        </a>
+                        </div>
                     </div>
                 @endforeach
             </div>
@@ -244,6 +250,41 @@
             </div>
         </section>
     @endif
+    </div>
+
+    <!-- Franja de confianza -->
+    <div class="container">
+        <div class="g-trust">
+            <div class="g-trust-item">
+                <div class="g-trust-icon"><i class="bi bi-truck" aria-hidden="true"></i></div>
+                <div>
+                    <strong>Envío a todo el Perú</strong>
+                    <span>Despacho rápido y seguimiento</span>
+                </div>
+            </div>
+            <div class="g-trust-item">
+                <div class="g-trust-icon"><i class="bi bi-credit-card-2-front" aria-hidden="true"></i></div>
+                <div>
+                    <strong>Pago 100% seguro</strong>
+                    <span>Yape, Plin, tarjetas y transferencia</span>
+                </div>
+            </div>
+            <div class="g-trust-item">
+                <div class="g-trust-icon"><i class="bi bi-shield-check" aria-hidden="true"></i></div>
+                <div>
+                    <strong>Garantía oficial</strong>
+                    <span>Productos originales con garantía</span>
+                </div>
+            </div>
+            <div class="g-trust-item">
+                <div class="g-trust-icon"><i class="bi bi-headset" aria-hidden="true"></i></div>
+                <div>
+                    <strong>Asesoría personalizada</strong>
+                    <span>Te ayudamos a elegir</span>
+                </div>
+            </div>
+        </div>
+    </div>
 
     @if ($oferta_activa || $oferta_programada)
         @php
@@ -359,15 +400,16 @@
     @if ($categorias_home->isNotEmpty())
         @foreach ($categorias_home as $categoria)
             @if ($categoria->productos_carrusel->isNotEmpty())
-                <section class="section py-5 bg-white">
+                <section class="section g-section py-5">
                     <div class="container">
-                        <div class="container section-title d-flex justify-content-between align-items-center mb-2" data-aos="fade-up">
+                        <div class="g-section-head" data-aos="fade-up">
                             <div>
-                                <h2 class="mb-0 text-start">{{ $categoria->nombre }}</h2>
-                                <p class="text-start">Encuentra los mejores productos seleccionados</p>
+                                <span class="g-eyebrow">Lo más vendido</span>
+                                <h2>{{ $categoria->nombre }}</h2>
+                                <p>Encuentra los mejores productos seleccionados</p>
                             </div>
-                            <a href="{{ route('web.productos', ['categoria' => $categoria->slug]) }}" class="btn btn-outline-primary rounded-pill px-4 btn-sm fw-semibold">
-                                Ver Todo
+                            <a href="{{ route('web.productos', ['categoria' => $categoria->slug]) }}" class="g-link-all">
+                                Ver todo <i class="bi bi-arrow-right" aria-hidden="true"></i>
                             </a>
                         </div>
 
@@ -424,11 +466,17 @@
         @if ($datos->isNotEmpty())
             @if ($seccion->clave === 'marcas')
                 <!-- Sección de Marcas -->
-                <section class="section py-5 bg-light border-top">
+                <section class="section g-section g-section--muted py-5">
                     <div class="container">
-                        <div class="container section-title" data-aos="fade-up">
-                            <h2>{{ $seccion->titulo }}</h2>
-                            <p>Nuestras marcas oficiales aliadas</p>
+                        <div class="g-section-head" data-aos="fade-up">
+                            <div>
+                                <span class="g-eyebrow">Marcas aliadas</span>
+                                <h2>{{ $seccion->titulo }}</h2>
+                                <p>Nuestras marcas oficiales aliadas</p>
+                            </div>
+                            <a href="{{ route('web.marcas') }}" class="g-link-all">
+                                Ver marcas <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                            </a>
                         </div>
 
                         <div class="row g-4 justify-content-center">
@@ -446,53 +494,68 @@
                 </section>
             @elseif ($seccion->clave === 'categorias_populares')
                 <!-- Sección de Categorías -->
-                <section class="section py-5 bg-white border-top">
+                <section class="section g-section py-5">
                     <div class="container">
-                        <div class="container section-title" data-aos="fade-up">
-                            <h2>{{ $seccion->titulo }}</h2>
-                            <p>Explore por sus categorías favoritas</p>
+                        <div class="g-section-head" data-aos="fade-up">
+                            <div>
+                                <span class="g-eyebrow">Explora</span>
+                                <h2>{{ $seccion->titulo }}</h2>
+                                <p>Explora por tus categorías favoritas</p>
+                            </div>
+                            <a href="{{ route('web.productos') }}" class="g-link-all">
+                                Ver catálogo <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                            </a>
                         </div>
 
-                        <div class="row g-4 justify-content-center">
-                            @foreach ($datos as $categoria)
-                                <div class="col-6 col-md-4 col-lg-3">
-                                    <div class="card h-100 border-0 shadow-sm category-card text-center p-4" style="border-radius: 12px; background: #f8fafc;">
-                                        <div class="fs-1 text-primary mb-3">
-                                            <i class="{{ $categoria->icono ?? 'bi-tag' }}"></i>
-                                        </div>
-                                        <h5 class="fw-bold mb-1">{{ $categoria->nombre }}</h5>
-                                        <small class="text-muted d-block mb-3">{{ $categoria->productos_count }} productos</small>
-                                        <a href="{{ route('web.categoria', $categoria->slug) }}" class="btn btn-outline-primary btn-sm rounded-pill px-3">
-                                            Ver productos
-                                        </a>
-                                    </div>
-                                </div>
+                        <div class="g-cat-grid">
+                            @foreach ($datos->take(12) as $categoria)
+                                <a href="{{ route('web.categoria', $categoria->slug) }}" class="g-cat-card">
+                                    <span class="g-cat-icon"><i class="{{ $categoria->icono ?? 'bi-tag' }}" aria-hidden="true"></i></span>
+                                    <strong>{{ $categoria->nombre }}</strong>
+                                    <span>{{ $categoria->productos_count }} productos</span>
+                                </a>
                             @endforeach
                         </div>
                     </div>
                 </section>
             @else
                 <!-- Sección de Productos (destacados, ofertas, nuevos, recomendados) -->
-                <section class="section py-5 {{ $loop->even ? 'bg-white' : 'bg-light' }} border-top">
+                <section class="section g-section py-5 {{ $loop->even ? 'g-section--muted' : '' }}">
                     <div class="container">
-                        <div class="container section-title text-start mb-4" data-aos="fade-up">
-                            <h2>{{ $seccion->titulo }}</h2>
-                            @if ($seccion->clave === 'productos_destacados')
-                                <p>Nuestra selección de productos destacados</p>
-                            @elseif ($seccion->clave === 'ofertas')
-                                <p>Descuentos especiales por tiempo limitado</p>
-                            @elseif ($seccion->clave === 'nuevos_productos')
-                                <p>Explora nuestras últimas novedades</p>
-                            @elseif ($seccion->clave === 'productos_recomendados')
-                                <p>Nuestras recomendaciones exclusivas</p>
-                            @else
-                                <p>Encuentra lo que buscas</p>
-                            @endif
+                        <div class="g-section-head" data-aos="fade-up">
+                            <div>
+                                <span class="g-eyebrow">
+                                    @if ($seccion->clave === 'ofertas')
+                                        Ofertas
+                                    @elseif ($seccion->clave === 'nuevos_productos')
+                                        Recién llegados
+                                    @elseif ($seccion->clave === 'productos_recomendados')
+                                        Para ti
+                                    @else
+                                        Selección
+                                    @endif
+                                </span>
+                                <h2>{{ $seccion->titulo }}</h2>
+                                @if ($seccion->clave === 'productos_destacados')
+                                    <p>Nuestra selección de productos destacados</p>
+                                @elseif ($seccion->clave === 'ofertas')
+                                    <p>Descuentos especiales por tiempo limitado</p>
+                                @elseif ($seccion->clave === 'nuevos_productos')
+                                    <p>Explora nuestras últimas novedades</p>
+                                @elseif ($seccion->clave === 'productos_recomendados')
+                                    <p>Nuestras recomendaciones exclusivas</p>
+                                @else
+                                    <p>Encuentra lo que buscas</p>
+                                @endif
+                            </div>
+                            <a href="{{ $seccion->clave === 'ofertas' ? route('web.ofertas') : route('web.productos') }}" class="g-link-all">
+                                Ver todo <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                            </a>
                         </div>
 
-                        <div class="row g-4">
+                        <div class="row g-3 g-md-4">
                             @foreach ($datos as $producto)
-                                <div class="col-lg-3 col-md-6 col-sm-12">
+                                <div class="col-lg-3 col-md-6 col-6">
                                     @include('partials.producto_card', ['producto' => $producto])
                                 </div>
                             @endforeach
@@ -502,5 +565,24 @@
             @endif
         @endif
     @endforeach
+
+    <!-- Banda de asesoría -->
+    <section class="g-cta-band">
+        <div class="container">
+            <div class="g-cta-inner">
+                <div>
+                    <span class="g-eyebrow" style="color:#93c5fd">Asesoría gratuita</span>
+                    <h2>¿No sabes qué equipo elegir?</h2>
+                    <p>Cuéntanos qué necesitas y un asesor te recomienda la mejor opción según tu presupuesto.</p>
+                </div>
+                <div class="g-cta-actions">
+                    <a href="{{ route('web.asesores') }}" class="btn btn-light fw-bold">
+                        <i class="bi bi-whatsapp me-1" aria-hidden="true"></i> Hablar con un asesor
+                    </a>
+                    <a href="{{ route('web.productos') }}" class="btn btn-outline-light">Ver catálogo</a>
+                </div>
+            </div>
+        </div>
+    </section>
 
 @endsection

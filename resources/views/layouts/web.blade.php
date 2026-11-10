@@ -1,4 +1,4 @@
-@php
+﻿@php
     $ajuste = \App\Models\Ajuste::first() ?? new \App\Models\Ajuste();
 @endphp
 <!DOCTYPE html>
@@ -7,7 +7,7 @@
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <title>@hasSection('title')@yield('title') — {{ $ajuste->nombre }}@else{{ $ajuste->nombre }} · {{ $ajuste->descripcion }}@endif</title>
+    <title>@hasSection('title')@yield('title') â€” {{ $ajuste->nombre }}@else{{ $ajuste->nombre }} Â· {{ $ajuste->descripcion }}@endif</title>
     <meta name="description" content="@yield('meta_descripcion', $ajuste->descripcion)">
     <meta name="keywords" content="">
     <meta name="robots" content="@yield('meta_robots', 'index, follow')">
@@ -20,7 +20,7 @@
     <link href="https://fonts.googleapis.com" rel="preconnect">
     <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&family=Montserrat:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Montserrat:wght@500;600;700;800&family=Poppins:wght@500;600;700;800&display=swap"
         rel="stylesheet">
 
     <!-- Vendor CSS Files -->
@@ -35,6 +35,11 @@
 
     <!-- Main CSS File -->
     <link href="{{ asset('/assets/css/main.css') }}" rel="stylesheet">
+
+    <!-- GALY Theme -->
+    <link href="{{ asset('/assets/css/galy.css') }}?v=4" rel="stylesheet">
+
+    <meta name="theme-color" content="#0b1220">
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -74,7 +79,7 @@
             transition: all 0.3s ease;
         }
 
-        /* Personalización del Menú de Navegación */
+        /* PersonalizaciÃ³n del MenÃº de NavegaciÃ³n */
         .header .header-nav {
             background-color: {{ $ajuste->menu_bg_color ?? '#ffffff' }} !important;
             @if(isset($ajuste->menu_opacity))
@@ -452,6 +457,44 @@
 
     <header id="header" class="header sticky-top">
 
+        @php
+            $gTelefono = trim((string) ($contact_info->telefono_principal ?? ''));
+            $gWhatsappRaw = trim((string) ($contact_info->whatsapp ?? ''));
+            preg_match('~(?:https?://)?(?:www\.)?wa\.me/(\+?\d+)~i', $gWhatsappRaw, $gWaMatch);
+            $gWhatsappNumber = $gWaMatch[1] ?? preg_replace('/\D+/', '', $gWhatsappRaw);
+            $gWhatsappLink = $gWhatsappNumber ? 'https://wa.me/' . $gWhatsappNumber : null;
+            $gTelefonoLink = $gTelefono ? preg_replace('/[^\d\+]/', '', $gTelefono) : null;
+        @endphp
+
+        <!-- Barra superior -->
+        <div class="g-topbar d-none d-sm-block">
+            <div class="container-xl">
+                <ul class="g-topbar-list">
+                    <li class="g-topbar-item"><i class="bi bi-truck"></i> EnvÃ­o a todo el PerÃº</li>
+                    <li class="g-topbar-item"><i class="bi bi-shield-check"></i> Compra 100% segura</li>
+                    <li class="g-topbar-item"><i class="bi bi-arrow-repeat"></i> Cambios sin complicaciones</li>
+                </ul>
+                <ul class="g-topbar-links">
+                    @if($gWhatsappLink)
+                        <li class="g-topbar-item">
+                            <a href="{{ $gWhatsappLink }}" target="_blank" rel="noopener noreferrer">
+                                <i class="bi bi-whatsapp"></i> {{ $gWhatsappNumber }}
+                            </a>
+                        </li>
+                    @elseif($gTelefono)
+                        <li class="g-topbar-item">
+                            <a href="tel:{{ $gTelefonoLink }}"><i class="bi bi-telephone"></i> {{ $gTelefono }}</a>
+                        </li>
+                    @endif
+                    <li class="g-topbar-item"><a href="{{ route('web.contacto') }}"><i class="bi bi-headset"></i> Ayuda</a></li>
+                    <li class="g-topbar-item"><a href="{{ url('/dashboard') }}"><i class="bi bi-box-seam"></i> Mis pedidos</a></li>
+                    <li class="g-topbar-item">
+                        <span class="g-topbar-highlight"><i class="bi bi-lightning-charge-fill"></i> Ofertas todos los dÃ­as</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
         <!-- Main Header -->
         <div class="main-header py-3">
             <div class="container-fluid container-xl">
@@ -504,7 +547,7 @@
                                     <li class="px-3">
                                         <form method="POST" action="{{ route('logout') }}">
                                             @csrf
-                                            <button type="submit" class="btn btn-sm btn-outline-danger w-100 rounded-pill"><i class="bi bi-box-arrow-right me-1"></i> Cerrar Sesión</button>
+                                            <button type="submit" class="btn btn-sm btn-outline-danger w-100 rounded-pill"><i class="bi bi-box-arrow-right me-1"></i> Cerrar SesiÃ³n</button>
                                         </form>
                                     </li>
                                 </ul>
@@ -514,28 +557,28 @@
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end shadow border-0 glass-dropdown p-3 mt-2" style="width: 220px;">
                                     <li class="text-center mb-2 small text-muted">Bienvenido</li>
-                                    <li><a href="{{ route('web.login') }}" class="btn btn-primary btn-sm w-100 mb-2 rounded-pill">Iniciar Sesión</a></li>
+                                    <li><a href="{{ route('web.login') }}" class="btn btn-primary btn-sm w-100 mb-2 rounded-pill">Iniciar SesiÃ³n</a></li>
                                     <li><a href="{{ route('web.registro') }}" class="btn btn-outline-primary btn-sm w-100 rounded-pill">Registrarse</a></li>
                                 </ul>
                             @endif
                         </div>
 
                         <!-- Wishlist link -->
-                        <a href="{{ route('web.favoritos.index') }}" class="header-action-btn d-flex align-items-center gap-1 text-decoration-none">
+                        <a href="{{ route('web.favoritos.index') }}" class="header-action-btn g-header-fav" aria-label="Mis favoritos" title="Mis favoritos">
                             <i class="bi bi-heart"></i>
-                            <span class="fav-counter text-dark small" style="font-size: 13px;">({{ $cantidad_favoritos ?? 0 }})</span>
+                            <span class="fav-counter g-count {{ ($cantidad_favoritos ?? 0) > 0 ? '' : 'is-zero' }}">{{ $cantidad_favoritos ?? 0 }}</span>
                         </a>
 
                         <!-- Mini Cart Dropdown -->
                         <div class="dropdown mini-cart-dropdown-wrapper">
-                            <a href="{{ route('web.carrito.index') }}" class="header-action-btn d-flex align-items-center gap-1 text-decoration-none" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                            <a href="{{ route('web.carrito.index') }}" class="header-action-btn g-header-cart" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Mi carrito" title="Mi carrito">
                                 <i class="bi bi-cart"></i>
-                                <span class="cart-counter text-dark small" style="font-size: 13px;">({{ $carrito_cantidad ?? 0 }})</span>
+                                <span class="cart-counter g-count {{ ($carrito_cantidad ?? 0) > 0 ? '' : 'is-zero' }}">{{ $carrito_cantidad ?? 0 }}</span>
                             </a>
                             <div class="dropdown-menu dropdown-menu-end shadow-lg border-0 glass-dropdown py-3 mt-2" style="width: 320px;">
                                 <div class="px-3 pb-2 border-bottom d-flex justify-content-between align-items-center">
                                     <h6 class="mb-0 fw-bold">Mi Carrito</h6>
-                                    <span class="badge bg-primary rounded-pill">{{ $carrito_cantidad ?? 0 }} ítems</span>
+                                    <span class="badge bg-primary rounded-pill">{{ $carrito_cantidad ?? 0 }} Ã­tems</span>
                                 </div>
                                 <div class="mini-cart-items px-3 py-2 overflow-y-auto" style="max-height: 250px;">
                                     @forelse($carrito_items ?? [] as $item)
@@ -556,7 +599,7 @@
                                     @empty
                                         <div class="text-center py-4 text-muted">
                                             <i class="bi bi-cart-x display-6 mb-2 d-block text-secondary"></i>
-                                            <span>Tu carrito está vacío</span>
+                                            <span>Tu carrito estÃ¡ vacÃ­o</span>
                                         </div>
                                     @endforelse
                                 </div>
@@ -596,7 +639,7 @@
                         
                         <!-- Categories MegaMenu -->
                         <li class="dropdown mega-dropdown">
-                            <a href="#"><span>Categorías</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+                            <a href="#"><span>CategorÃ­as</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
                             
                             <!-- Mobile Categories list -->
                             <ul class="d-xl-none">
@@ -605,7 +648,7 @@
                                 @if(($productos_ofertas ?? collect())->isNotEmpty())
                                     <li><a href="{{ route('web.ofertas') }}"><i class="bi bi-percent text-success me-2"></i> Ofertas</a></li>
                                 @endif
-                                <li class="dropdown"><a href="#"><span>Ver Por Categoría</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+                                <li class="dropdown"><a href="#"><span>Ver Por CategorÃ­a</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
                                     <ul>
                                         @foreach($menu_categorias ?? [] as $cat)
                                             <li><a href="{{ route('web.categoria', $cat->slug) }}"><i class="{{ $cat->icono ?? 'bi-tag' }} me-2"></i> {{ $cat->nombre }}</a></li>
@@ -769,7 +812,7 @@
                                                         @empty
                                                             <div class="col-12 text-center py-5 text-muted">
                                                                 <i class="bi bi-info-circle display-5 mb-2 d-block"></i>
-                                                                <span>No hay productos en esta categoría</span>
+                                                                <span>No hay productos en esta categorÃ­a</span>
                                                             </div>
                                                         @endforelse
                                                     </div>
@@ -802,7 +845,7 @@
                             <!-- Desktop brands grid -->
                             <div class="mega-menu-container d-none d-xl-block dropdown-menu p-4">
                                 <div class="container">
-                                    <h5 class="fw-bold mb-3"><i class="bi bi-gpu-card text-primary me-2"></i>Nuestras Marcas de Tecnología</h5>
+                                    <h5 class="fw-bold mb-3"><i class="bi bi-gpu-card text-primary me-2"></i>Nuestras Marcas de TecnologÃ­a</h5>
                                     <div class="row row-cols-4 g-3">
                                         @foreach($menu_marcas ?? [] as $marca)
                                             <div class="col">
@@ -820,7 +863,7 @@
 
                         <li><a href="{{ route('web.asesores') }}" class="{{ Route::is('web.asesores') ? 'active' : '' }}"><i class="bi bi-people me-1" aria-hidden="true"></i>Asesores</a></li>
                         <li><a href="{{ route('web.nosotros') }}" class="{{ Route::is('web.nosotros') ? 'active' : '' }}">Nosotros</a></li>
-                        <li><a href="{{ route('web.contacto') }}#servicio-tecnico"><i class="bi bi-tools me-1" aria-hidden="true"></i>Servicio técnico</a></li>
+                        <li><a href="{{ route('web.contacto') }}#servicio-tecnico"><i class="bi bi-tools me-1" aria-hidden="true"></i>Servicio tÃ©cnico</a></li>
                         <li><a href="{{ route('web.contacto') }}" class="{{ Route::is('web.contacto') ? 'active' : '' }}">Contacto</a></li>
                     </ul>
                 </nav>
@@ -846,7 +889,7 @@
                                 @elseif($ajuste && $ajuste->logo)
                                     <img src="{{ asset('storage/' . $ajuste->logo) }}" alt="{{ $footer_settings->nombre_empresa ?? $ajuste->nombre }}" style="max-height: 45px;">
                                 @else
-                                    <span class="sitename fs-3">{{ $footer_settings->nombre_empresa ?? 'Tectron Galy' }}</span>
+                                    <span class="sitename fs-3">{{ $footer_settings->nombre_empresa ?? 'GALY' }}</span>
                                 @endif
                             </a>
                             @if($footer_settings && $footer_settings->descripcion)
@@ -867,7 +910,7 @@
                             @endphp
                             @if(collect([$facebookLink, $instagramLink, $tiktokLink, $twitterLink, $youtubeLink, $linkedinLink, $whatsappLink])->contains(fn ($link) => filled($link) && $link !== '#'))
                                 <div class="social-links mt-4">
-                                    <h5 class="text-white">Síguenos en Redes</h5>
+                                    <h5 class="text-white">SÃ­guenos en Redes</h5>
                                     <div class="social-icons d-flex gap-2">
                                         @if(filled($facebookLink) && $facebookLink !== '#')
                                             <a href="{{ $facebookLink }}" target="_blank" rel="noopener noreferrer" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
@@ -898,12 +941,12 @@
 
                     <div class="col-lg-2 col-md-6 col-sm-6">
                         <div class="footer-widget">
-                            <h4>Enlaces Rápidos</h4>
+                            <h4>Enlaces RÃ¡pidos</h4>
                             <ul class="footer-links">
                                 @forelse($footer_enlaces ?? [] as $enlace)
                                     <li><a href="{{ url($enlace->url) }}">{{ $enlace->titulo }}</a></li>
                                 @empty
-                                    <li><a href="{{ route('web.productos') }}">Ver Catálogo</a></li>
+                                    <li><a href="{{ route('web.productos') }}">Ver CatÃ¡logo</a></li>
                                     <li><a href="{{ route('web.ofertas') }}">Ofertas Especiales</a></li>
                                     <li><a href="{{ route('web.nosotros') }}">Sobre Nosotros</a></li>
                                     <li><a href="{{ route('web.contacto') }}">Contacto</a></li>
@@ -914,11 +957,11 @@
 
                     <div class="col-lg-2 col-md-6 col-sm-6">
                         <div class="footer-widget">
-                            <h4>Información Legal</h4>
+                            <h4>InformaciÃ³n Legal</h4>
                             <ul class="footer-links">
-                                <li><a href="{{ url('/terminos-y-condiciones') }}">Términos y Condiciones</a></li>
-                                <li><a href="{{ url('/politica-de-privacidad') }}">Política de Privacidad</a></li>
-                                <li><a href="{{ url('/politica-de-cookies') }}">Política de Cookies</a></li>
+                                <li><a href="{{ url('/terminos-y-condiciones') }}">TÃ©rminos y Condiciones</a></li>
+                                <li><a href="{{ url('/politica-de-privacidad') }}">PolÃ­tica de Privacidad</a></li>
+                                <li><a href="{{ url('/politica-de-cookies') }}">PolÃ­tica de Cookies</a></li>
                                 <li><a href="{{ url('/cambios-y-devoluciones') }}">Cambios y Devoluciones</a></li>
                             </ul>
                         </div>
@@ -927,7 +970,7 @@
                         <div class="col-lg-4 col-md-6">
                             <div class="footer-widget">
                                 @if($contact_info && ($contact_info->direccion || $contact_info->telefono_principal || $contact_info->email || $contact_info->horario_atencion))
-                                    <h4>Información de Contacto</h4>
+                                    <h4>InformaciÃ³n de Contacto</h4>
                                     <div class="footer-contact">
                                     @if($contact_info->direccion)
                                         <div class="contact-item d-flex gap-2 align-items-start mb-2">
@@ -984,10 +1027,10 @@
                 <div class="row gy-3 align-items-center">
                     <div class="col-lg-6 col-md-12">
                         <div class="copyright">
-                            <p>{{ $footer_settings->copyright_texto ?? '© Copyright Tectron Galy. All Rights Reserved.' }}</p>
+                            <p>{{ $footer_settings->copyright_texto ?? 'Â© Copyright GALY. All Rights Reserved.' }}</p>
                         </div>
                         <div class="credits mt-1">
-                            Diseñado por <a href="https://bootstrapmade.com/">BootstrapMade</a>
+                            DiseÃ±ado por <a href="https://bootstrapmade.com/">BootstrapMade</a>
                         </div>
                     </div>
 
@@ -1001,8 +1044,9 @@
                             </div>
 
                             <div class="legal-links">
-                                <a href="{{ url('/terminos-y-condiciones') }}">Términos</a>
+                                <a href="{{ url('/terminos-y-condiciones') }}">TÃ©rminos</a>
                                 <a href="{{ url('/politica-de-privacidad') }}">Privacidad</a>
+                                <a href="{{ url('/pago-seguro') }}">Pago seguro</a>
                                 <a href="{{ url('/politica-de-cookies') }}">Cookies</a>
                             </div>
                         </div>
@@ -1012,6 +1056,39 @@
             </div>
         </div>
     </footer>
+
+    <!-- NavegaciÃ³n inferior (mÃ³vil) -->
+    <nav class="g-dock" aria-label="Accesos rÃ¡pidos">
+        <ul class="g-dock-list">
+            <li>
+                <a href="{{ route('web.index') }}" class="g-dock-link">
+                    <i class="bi bi-house-door" aria-hidden="true"></i><span>Inicio</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ route('web.productos') }}" class="g-dock-link">
+                    <i class="bi bi-grid" aria-hidden="true"></i><span>CategorÃ­as</span>
+                </a>
+            </li>
+            <li>
+                <button type="button" class="g-dock-link" data-g-search aria-label="Buscar">
+                    <i class="bi bi-search" aria-hidden="true"></i><span>Buscar</span>
+                </button>
+            </li>
+            <li>
+                <a href="{{ route('web.favoritos.index') }}" class="g-dock-link">
+                    <i class="bi bi-heart" aria-hidden="true"></i><span>Favoritos</span>
+                    <span class="fav-counter g-dock-badge {{ ($cantidad_favoritos ?? 0) > 0 ? '' : 'is-zero' }}">{{ $cantidad_favoritos ?? 0 }}</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ route('web.carrito.index') }}" class="g-dock-link">
+                    <i class="bi bi-bag" aria-hidden="true"></i><span>Carrito</span>
+                    <span class="cart-counter g-dock-badge {{ ($carrito_cantidad ?? 0) > 0 ? '' : 'is-zero' }}">{{ $carrito_cantidad ?? 0 }}</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
 
     <!-- Scroll Top -->
     <a href="#" id="scroll-top" class="scroll-top d-flex align-items-center justify-content-center"><i
@@ -1031,6 +1108,7 @@
 
     <!-- Main JS File -->
     <script src="{{ asset('/assets/js/main.js') }}"></script>
+    <script src="{{ asset('/assets/js/galy.js') }}?v=1"></script>
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -1103,7 +1181,7 @@
                             window.location.href = '{{ route("web.login") }}';
                             return;
                         }
-                        throw new Error('El servidor devolvió una respuesta no válida (HTML).');
+                        throw new Error('El servidor devolviÃ³ una respuesta no vÃ¡lida (HTML).');
                     }
                 })
                 .then(data => {
@@ -1111,8 +1189,10 @@
                     if (data.success) {
                         const cartCounter = document.querySelectorAll('.cart-counter');
                         cartCounter.forEach(counter => {
-                            counter.textContent = `(${data.contador})`;
+                            counter.textContent = data.contador;
+                            counter.classList.toggle('is-zero', !data.contador);
                         });
+                        document.dispatchEvent(new CustomEvent('galy:counters'));
                         
                         Toast.fire({
                             icon: 'success',
@@ -1142,7 +1222,7 @@
                     console.error(err);
                     Toast.fire({
                         icon: 'error',
-                        title: err.message || 'Ocurrió un error inesperado.'
+                        title: err.message || 'OcurriÃ³ un error inesperado.'
                     });
                 });
             }
@@ -1183,7 +1263,7 @@
                             window.location.href = '{{ route("web.login") }}';
                             return;
                         }
-                        throw new Error('El servidor devolvió una respuesta no válida (HTML).');
+                        throw new Error('El servidor devolviÃ³ una respuesta no vÃ¡lida (HTML).');
                     }
                 })
                 .then(data => {
@@ -1213,8 +1293,10 @@
 
                         const favCounter = document.querySelectorAll('.fav-counter');
                         favCounter.forEach(counter => {
-                            counter.textContent = `(${data.contador})`;
+                            counter.textContent = data.contador;
+                            counter.classList.toggle('is-zero', !data.contador);
                         });
+                        document.dispatchEvent(new CustomEvent('galy:counters'));
 
                         Toast.fire({
                             icon: 'success',
@@ -1231,7 +1313,7 @@
                     console.error(err);
                     Toast.fire({
                         icon: 'error',
-                        title: err.message || 'Ocurrió un error inesperado.'
+                        title: err.message || 'OcurriÃ³ un error inesperado.'
                     });
                 });
             }
@@ -1253,3 +1335,4 @@
 </body>
 
 </html>
+

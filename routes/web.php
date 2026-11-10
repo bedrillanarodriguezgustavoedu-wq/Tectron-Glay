@@ -219,6 +219,9 @@ Route::delete('/admin/categoria/{id}', [CategoriaController::class, 'destroy'])
 Route::get('/admin/productos', [ProductoController::class, 'index'])
     ->name('admin.productos.index')
     ->middleware(['auth', 'can:Listado de Productos']);
+Route::post('/admin/producto/{id}/reponer-stock', [ProductoController::class, 'reponerStock'])
+    ->name('admin.productos.reponer_stock')
+    ->middleware(['auth', 'can:Listado de Productos']);
 
 Route::get('/admin/productos/create', [ProductoController::class, 'create'])
     ->name('admin.productos.create')
@@ -622,6 +625,12 @@ Route::get('/pago/tarjeta/retorno', [MercadoPagoController::class, 'retorno'])
 Route::post('/pedido/{id}/reintentar-tarjeta', [MercadoPagoController::class, 'reintentar'])
     ->name('web.pedidos.tarjeta.reintentar')
     ->middleware(['auth', 'throttle:6,1']);
+// Cobro con el formulario de tarjeta embebido (Checkout Bricks). Habla con la API
+// de Mercado Pago en cada envío, así que va limitado: nadie debe poder usarlo para
+// probar tarjetas ni para martillar un pedido.
+Route::post('/pedido/{id}/pago-tarjeta-brick', [MercadoPagoController::class, 'pagoBrick'])
+    ->name('web.pedidos.tarjeta.brick')
+    ->middleware(['auth', 'throttle:6,1']);
 Route::post('/webhooks/mercadopago', [MercadoPagoController::class, 'webhook'])
     ->name('web.hook.mercadopago')
     ->middleware('throttle:300,1');
@@ -636,6 +645,7 @@ Route::post('/admin/footer/settings', [FooterController::class, 'storeSettings']
 // ////////////////////////////////////////////////////RUTAS LEGALES PÚBLICAS////////////////////////////////////////////////////////////
 Route::get('/terminos-y-condiciones', [WebController::class, 'terminos'])->name('web.terminos');
 Route::get('/politica-de-privacidad', [WebController::class, 'privacidad'])->name('web.privacidad');
+Route::get('/pago-seguro', [WebController::class, 'pagoSeguro'])->name('web.pago_seguro');
 Route::get('/politica-de-cookies', [WebController::class, 'cookies'])->name('web.cookies');
 Route::get('/cambios-y-devoluciones', [WebController::class, 'cambios_devoluciones'])->name('web.cambios_devoluciones');
 

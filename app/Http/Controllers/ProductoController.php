@@ -26,8 +26,12 @@ class ProductoController extends Controller
     {
         $ajuste = Ajuste::first();
         $enPapelera = $request->boolean('eliminados');
+        $enAgotados = $request->boolean('agotados');
+        $enBajoStock = $request->boolean('bajo_stock');
         $query = $this->busqueda($request->input('buscar'))
             ->when($enPapelera, fn ($consulta) => $consulta->onlyTrashed())
+            ->when($enAgotados && ! $enPapelera, fn ($consulta) => $consulta->where('stock', '<=', 0))
+            ->when($enBajoStock && ! $enPapelera && ! $enAgotados, fn ($consulta) => $consulta->where('stock', '>', 0)->where('stock', '<=', 10))
             ->with('categoria');
         $hasProductMap = Schema::hasTable('tectron_galy_product_map');
 
@@ -45,6 +49,8 @@ class ProductoController extends Controller
         $productos = $query->paginate(10)->withQueryString();
         $productosGaly = Producto::count();
         $productosEnPapelera = Producto::onlyTrashed()->count();
+        $productosAgotados = Producto::where('stock', '<=', 0)->count();
+        $productosBajoStock = Producto::where('stock', '>', 0)->where('stock', '<=', 10)->count();
         $productosTectron = $hasProductMap
             ? DB::table('tectron_galy_product_map')->count()
             : 0;
@@ -55,9 +61,32 @@ class ProductoController extends Controller
             'productosGaly',
             'productosTectron',
             'productosEnPapelera',
+            'productosAgotados',
+            'productosBajoStock',
             'enPapelera',
+            'enAgotados',
+            'enBajoStock',
             'hasProductMap'
         ));
+    }
+
+    /**
+     * Repone stock rápidamente desde el listado: suma la cantidad indicada (por
+     * defecto 10) y reactiva el producto si vuelve a tener stock.
+     */
+    public function reponerStock(Request $request, $id)
+    {
+        $producto = Producto::findOrFail($id);
+        $cantidad = (int) $request->input('cantidad', 10);
+        if ($cantidad < 1) {
+            $cantidad = 10;
+        }
+        $producto->stock = (int) $producto->stock + $cantidad;
+        $producto->disponible = (int) $producto->stock > 0;
+        $producto->save();
+
+        return redirect()->back()
+            ->with('success', 'Stock repuesto: ' . $producto->nombre . ' ahora tiene ' . $producto->stock . ' unidades.');
     }
 
     /**

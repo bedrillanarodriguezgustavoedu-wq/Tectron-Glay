@@ -33,6 +33,8 @@ class VerifyMercadoPagoSettings extends Command
                 ? 'sí, '.($ajuste?->web_mercadopago_verificado_at ?? '')
                 : 'NO (nadie probó este token contra Mercado Pago)',
                 'Corre php artisan mercadopago:verificar --probar; sin esa prueba la tarjeta no se ofrece'],
+            ['Formulario de tarjeta dentro de la tienda', $mercadoPago->brickListo() ? 'sí (Checkout Bricks)' : 'no',
+                $mercadoPago->motivoBrickApagado() ?? 'Se apaga con MERCADOPAGO_BRICKS=false si prefieres el checkout de Mercado Pago'],
         ];
 
         $this->table(['Qué se revisa', 'Estado', 'Cómo se arregla'], $filas);
@@ -60,7 +62,7 @@ class VerifyMercadoPagoSettings extends Command
         }
 
         if ($ofrecida && ! filled(config('services.mercadopago.webhook_secret')) && ! app()->environment('local', 'testing')) {
-            $this->warn('Sin MERCADOPAGO_WEBHOOK_SECRET la tienda acepta webhooks sin verificar firma. Ponlo antes de cobrar de verdad.');
+            $this->warn('Sin MERCADOPAGO_WEBHOOK_SECRET el webhook rechaza todas las notificaciones: el pago solo se confirmaría cuando el cliente vuelve a la tienda. Copia el secreto firmante antes de cobrar de verdad.');
         }
 
         $this->avisarDePagosAbiertos();

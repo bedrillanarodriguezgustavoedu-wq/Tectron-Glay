@@ -30,6 +30,7 @@ class CategoriaAdministrationTest extends TestCase
             $table->unsignedBigInteger('categoria_id')->nullable();
             $table->string('categoria_nombre')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

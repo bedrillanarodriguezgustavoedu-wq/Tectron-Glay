@@ -46,6 +46,11 @@ return [
         'checkout_ttl_minutes' => env('MERCADOPAGO_CHECKOUT_TTL_MINUTES', 30),
         'api_url' => env('MERCADOPAGO_API_URL', 'https://api.mercadopago.com'),
         'statement_descriptor' => env('MERCADOPAGO_STATEMENT_DESCRIPTOR', 'GALY'),
+        // El formulario de tarjeta dentro de la tienda (Checkout Bricks) pide la
+        // Public Key además del Access Token, y se enciende aparte: apagado, el
+        // cobro sigue yendo a la pantalla hospedada de Mercado Pago.
+        'public_key' => env('MERCADOPAGO_PUBLIC_KEY'),
+        'bricks' => env('MERCADOPAGO_BRICKS', false),
     ],
 
     'slack' => [

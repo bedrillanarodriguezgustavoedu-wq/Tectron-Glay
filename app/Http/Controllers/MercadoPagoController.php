@@ -8,6 +8,7 @@ use App\Models\Orden;
 use App\Services\MercadoPagoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class MercadoPagoController extends Controller
 {
@@ -30,7 +31,7 @@ class MercadoPagoController extends Controller
                 ->with('icono', 'warning');
         }
 
-        $usuarioId = auth()->user()->resolveGalyUserId();
+        $usuarioId = auth()->user()?->resolveGalyUserId();
 
         if ($usuarioId === null) {
             return redirect()->route('web.carrito.index')
@@ -138,7 +139,7 @@ class MercadoPagoController extends Controller
      */
     public function reintentar($id)
     {
-        $usuarioId = auth()->user()->resolveGalyUserId();
+        $usuarioId = auth()->user()?->resolveGalyUserId();
         abort_if($usuarioId === null, 403);
 
         $orden = Orden::where('usuario_id', $usuarioId)->where('metodo_pago', 'tarjeta')->findOrFail($id);
@@ -163,7 +164,7 @@ class MercadoPagoController extends Controller
                 ->with('icono', 'warning');
         }
 
-        $intento = $this->mercadoPago->reabrirCheckout($orden, auth()->user()->email);
+        $intento = $this->mercadoPago->reabrirCheckout($orden, auth()->user()?->email);
 
         if ($intento->estado === IntentoPagoMercadoPago::ESTADO_FALLIDO) {
             return redirect()->route('web.pedidos.confirmacion', $orden->id)
@@ -172,5 +173,165 @@ class MercadoPagoController extends Controller
         }
 
         return redirect()->away($intento->checkout_url);
+    }
+
+    /**
+     * Cobra la tarjeta dentro de la tienda con el token que generó el Brick de
+     * Mercado Pago en el navegador del cliente. Responde JSON porque lo llama ese
+     * formulario, no una recarga de página.
+     *
+     * Lo que se cobra es el monto guardado en el intento, nunca lo que envía el
+     * cliente: el campo del formulario es editable y un S/ 1.00 bien enviado sería
+     * un pedido entregado por la mitad de su precio.
+     */
+    public function pagoBrick(Request $request, $id)
+    {
+        try {
+        $usuarioId = auth()->user()?->resolveGalyUserId();
+        abort_if($usuarioId === null, 403);
+
+        $orden = Orden::where('usuario_id', $usuarioId)->where('metodo_pago', 'tarjeta')->findOrFail($id);
+
+        if (! $this->mercadoPago->brickListo()) {
+            return response()->json([
+                'resultado' => 'indisponible',
+                'mensaje' => 'El pago con tarjeta dentro de la tienda no está disponible ahora mismo. Recarga la página para elegir otro método.',
+            ], 409);
+        }
+
+        if (in_array($orden->estado_pago, ['Pagado', 'COMPLETED', 'approved'], true)) {
+            return response()->json([
+                'resultado' => 'confirmado',
+                'mensaje' => 'Este pedido ya quedó pagado con tarjeta.',
+                'redireccion' => route('web.pedidos.confirmacion', $orden->id),
+            ]);
+        }
+
+        // Igual que en `reintentar`: un cobro aprobado que todavía no se pudo aplicar
+        // es trabajo de la tienda. Dejar que el cliente vuelva a pasar la tarjeta lo
+        // expondría a pagar dos veces por lo mismo.
+        if (IntentoPagoMercadoPago::where('pedido_id', $orden->id)->where('estado_mercadopago', 'approved')->exists()) {
+            return response()->json([
+                'resultado' => 'pendiente',
+                'mensaje' => 'Mercado Pago ya registró un cobro para este pedido y la tienda lo está verificando. No repitas el pago.',
+                'redireccion' => route('web.pedidos.confirmacion', $orden->id),
+            ], 409);
+        }
+
+        $datos = $request->validate([
+            'token' => ['required', 'string', 'max:255'],
+            'payment_method_id' => ['required', 'string', 'max:60'],
+            'issuer_id' => ['nullable', 'integer', 'min:1'],
+            'installments' => ['nullable', 'integer', 'between:1,60'],
+            'email' => ['nullable', 'email:rfc', 'max:190'],
+            // Datos del titular que el Brick ya recogió: enviarlos a MP
+            // mejora la tasa de aprobación (antifraude).
+            'first_name' => ['nullable', 'string', 'max:80'],
+            'last_name' => ['nullable', 'string', 'max:80'],
+            'dni' => ['nullable', 'string', 'max:20'],
+            'identification' => ['nullable', 'array'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'address' => ['nullable'],
+        ]);
+
+        $intento = $this->mercadoPago->intentoParaBrick($orden);
+
+        // Si el Brick no envió dirección, usamos la del pedido para el
+        // antifraude de Mercado Pago (mejora la tasa de aprobación).
+        $direccionModelo = $orden->direccion()->first();
+        if (empty($datos['address']) && $direccionModelo) {
+            $d = $direccionModelo;
+            $datos['address'] = array_filter([
+                'street_name' => trim((string) $d->direccion_exacta) ?: null,
+                'zip_code' => (string) ($d->codigo_postal ?? ''),
+            ], fn ($v) => $v !== null && $v !== '');
+        } elseif (empty($datos['address']) && filled($orden->direccion_envio)) {
+            $datos['address'] = $orden->direccion_envio;
+        }
+        if (empty($datos['phone'])) {
+            $datos['phone'] = auth()->user()?->telefono;
+        }
+        if (empty($datos['first_name'])) {
+            $datos['first_name'] = auth()->user()?->name;
+        }
+        if (empty($datos['dni'])) {
+            $datos['dni'] = auth()->user()?->dni;
+        }
+
+        try {
+            $pago = $this->mercadoPago->crearPagoDirecto($intento, $datos);
+        } catch (Throwable $exception) {
+            // El cuerpo de Mercado Pago trae el detalle para el dueño, no para el
+            // cliente: mostrarlo tal cual revelaría referencias internas y códigos
+            // que nadie de la tienda sabe leer.
+            report($exception);
+
+            // Solo tiene sentido buscar un cobro «perdido» cuando la causa es de
+            // red o de tiempo: un 400/401/403 de Mercado Pago no dejó ningún
+            // cobro que recuperar, y buscarlo solo retrasa la respuesta.
+            $falloDeRed = $exception instanceof \Illuminate\Http\Client\ConnectionException
+                || str_contains($exception->getMessage(), 'timed out')
+                || str_contains($exception->getMessage(), 'Could not resolve')
+                || str_contains($exception->getMessage(), 'cURL error');
+
+            $pagoTardio = $falloDeRed
+                ? $this->mercadoPago->pagoTrasFalloDeRed($intento)
+                : null;
+
+            if ($pagoTardio !== null) {
+                $this->mercadoPago->aplicarPagoAlIntento($intento, $pagoTardio, 'brick');
+
+                $confirmado = $intento->estado === IntentoPagoMercadoPago::ESTADO_CONFIRMADO;
+
+                return response()->json([
+                    'resultado' => $confirmado ? 'confirmado' : 'pendiente',
+                    'mensaje' => $confirmado
+                        ? 'Mercado Pago confirmó tu pago. El pedido ya está en proceso.'
+                        : 'Mercado Pago sí registró un cobro, pero el banco aún no lo confirma. No repitas el pago.',
+                    'redireccion' => route('web.pedidos.confirmacion', $orden->id),
+                ]);
+            }
+
+            $mensaje = $falloDeRed
+                ? 'No pudimos comunicarnos con Mercado Pago y no se registró ningún cobro. Inténtalo de nuevo en unos minutos.'
+                : (preg_match('/HTTP (401|403)/', $exception->getMessage())
+                    ? 'La pasarela de tarjeta no está disponible ahora. Elige otro método o inténtalo más tarde.'
+                    : 'Mercado Pago no pudo procesar el pago y no se te cobró nada. Inténtalo de nuevo.');
+
+            return response()->json([
+                'resultado' => 'error',
+                'mensaje' => $mensaje,
+            ], 502);
+        }
+
+        $this->mercadoPago->aplicarPagoAlIntento($intento, $pago, 'brick');
+
+        $confirmado = $intento->estado === IntentoPagoMercadoPago::ESTADO_CONFIRMADO;
+        $rechazado = $intento->estado === IntentoPagoMercadoPago::ESTADO_FALLIDO;
+
+        return response()->json([
+            'resultado' => $confirmado ? 'confirmado' : ($rechazado ? 'rechazado' : 'pendiente'),
+            'mensaje' => match (true) {
+                $confirmado => 'Mercado Pago confirmó tu pago. El pedido ya está en proceso.',
+                $rechazado => 'Tu tarjeta fue rechazada y no se te cobró nada. Puedes probar con otra tarjeta.',
+                default => 'El banco todavía no confirma el cobro. No repitas el pago: si pasa, el pedido se actualiza solo.',
+            },
+            'redireccion' => route('web.pedidos.confirmacion', $orden->id),
+        ]);
+        } catch (\Throwable $exception) {
+            if ($exception instanceof \Symfony\Component\HttpKernel\Exception\HttpException
+                || $exception instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+                || $exception instanceof \Illuminate\Auth\Access\AuthorizationException
+                || $exception instanceof \Illuminate\Validation\ValidationException) {
+                throw $exception;
+            }
+
+            report($exception);
+
+            return response()->json([
+                'resultado' => 'error',
+                'mensaje' => 'No pudimos procesar el pago. Inténtalo de nuevo en unos minutos.',
+            ], 500);
+        }
     }
 }

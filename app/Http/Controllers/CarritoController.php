@@ -31,7 +31,7 @@ class CarritoController extends Controller
         $ajuste = Ajuste::first();
         $userId = Auth::user()->resolveGalyUserId();
         $carritos = $userId
-            ? Carrito::where('usuario_id', $userId)->with('producto.imagenes')->get()
+            ? Carrito::where('usuario_id', $userId)->with('producto.imagenes', 'producto.marca')->get()
             : collect();
 
         $paises = Pais::where('activo', true)->where('realiza_envios', true)->orderBy('nombre', 'asc')->get();

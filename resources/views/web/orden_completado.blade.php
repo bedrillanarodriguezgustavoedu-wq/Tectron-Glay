@@ -7,7 +7,20 @@
         $revisionMercadoPago = $orden->metodo_pago === 'tarjeta'
             && $pagoPendiente
             && $orden->intentosPago->contains(fn ($intento) => $intento->requiereRevisionManual());
+        // El cheque que sigue vivo: es el único enlace de Mercado Pago que la tienda
+        // todavía reconoce, así que el QR de «pagar desde el celular» apunta a él y
+        // no abre un segundo cobro sobre el mismo pedido.
+        $intentoTarjetaVivo = $orden->metodo_pago === 'tarjeta' && $pagoPendiente && ! $revisionMercadoPago
+            ? $orden->intentosPago->first(fn ($intento) => $intento->estaVigente() && $intento->checkout_url)
+            : null;
         $pagoConTransferencia = in_array($orden->metodo_pago, ['yape', 'plin', 'bcp'], true) && $pagoPendiente;
+        // El formulario de tarjeta embebido de Mercado Pago (Checkout Bricks). Existe
+        // solo si el dueño pegó su Public Key y encendió la bandera; mientras esté
+        // apagado esta página ofrece exactamente el mismo botón de hoy.
+        $servicioMercadoPago = app(\App\Services\MercadoPagoService::class);
+        $brickTarjeta = $orden->metodo_pago === 'tarjeta' && $pagoPendiente && ! $revisionMercadoPago
+            && $servicioMercadoPago->brickListo();
+        $llavePublicaTarjeta = $brickTarjeta ? $servicioMercadoPago->llavePublica() : null;
         $pedidoPendiente = in_array($orden->metodo_pago, ['yape', 'plin', 'bcp', 'tarjeta'], true) && $pagoPendiente;
         [$metodoManual, $numeroManual, $titularManual, $qrManual, $cuentaBcp] = match ($orden->metodo_pago) {
             'yape' => ['Yape', $ajuste?->web_yape_numero, $ajuste?->web_yape_titular, $ajuste?->web_yape_qr, null],
@@ -34,6 +47,26 @@
         };
     @endphp
     <style>
+        .brick-pago__recordatorio {
+            display: flex;
+            align-items: flex-start;
+            gap: .45rem;
+            margin: 0 0 .75rem;
+            padding: .5rem .65rem;
+            font-size: .78rem;
+            font-weight: 600;
+            line-height: 1.35;
+            color: #0d5bd6;
+            background: #f4f8ff;
+            border: 1px solid #dbe7ff;
+            border-radius: .7rem;
+        }
+
+        .brick-pago__recordatorio i {
+            flex: 0 0 auto;
+            margin-top: .1rem;
+        }
+
         .receipt-step__heading {
             display: flex;
             align-items: center;
@@ -131,6 +164,24 @@
             border: 1px solid #edf0f4;
             border-radius: .85rem;
             background: #fff;
+        }
+
+        /* El QR manda en esta pantalla: queda pegado mientras el cliente baja a ver
+           los productos, para que no pierda el código a media compra. La columna
+           flexible necesita align-self: flex-start, si no ya mide lo mismo que la
+           fila y sticky no tiene recorrido. */
+        .pedido-qr-flotante {
+            border: 1px solid #d8e6ff;
+            box-shadow: 0 .8rem 2rem rgba(13, 110, 253, .14);
+        }
+
+        @media (min-width: 768px) {
+            .pedido-qr-columna {
+                position: sticky;
+                top: 1rem;
+                align-self: flex-start;
+                z-index: 3;
+            }
         }
     </style>
     <div class="page-title light-background py-4">
@@ -274,7 +325,7 @@
                                                     <i class="bi bi-copy me-1" aria-hidden="true"></i><span data-copy-label>Copiar importe</span>
                                                 </button>
                                             </div>
-                                            <div class="small text-muted">Referencia: pedido #{{ $orden->id }}</div>
+                                            <div class="small text-muted">Yape y Plin no dejan escribir el número de pedido, así que el importe exacto es tu referencia: con el comprobante la tienda lo cruza con el pedido #{{ $orden->id }}.</div>
                                         </div>
                                         <!-- Debajo de los dos botones: el aviso de «copiado»
                                              tiene que quedar pegado a lo que se copió. -->
@@ -379,14 +430,45 @@
                                                 <div class="fs-4 fw-bold">{{ \App\Models\Ajuste::formatear_precio($orden->total) }}</div>
                                                 <div class="small text-muted">Pedido #{{ $orden->id }} · {{ $orden->getMetodoPagoTexto() }}</div>
                                             </div>
-                                            <form action="{{ route('web.pedidos.tarjeta.reintentar', $orden->id) }}" method="POST">
+                                            @if ($brickTarjeta)
+                                                <p class="brick-pago__recordatorio" data-brick-aviso>
+                                                    <i class="bi bi-bank" aria-hidden="true"></i>
+                                                    <span>Si tu tarjeta es de débito, activa las compras por internet desde la app de tu banco antes de pagar.</span>
+                                                </p>
+                                                <div id="cardPaymentBrick_container" data-brick-contenedor></div>
+                                                <p class="small text-muted mt-2 mb-0" data-brick-error hidden></p>
+                                                <p class="small text-muted mt-2 mb-0">
+                                                    El formulario lo muestra Mercado Pago: el número de tarjeta lo escribe él y la tienda nunca lo ve.
+                                                </p>
+                                            @endif
+                                            <form action="{{ route('web.pedidos.tarjeta.reintentar', $orden->id) }}" method="POST"
+                                                @if ($brickTarjeta) id="brick-pago-alternativo" @endif>
                                                 @csrf
-                                                <button type="submit" class="btn btn-primary rounded-pill px-4">
-                                                    <i class="bi bi-credit-card me-1"></i> Pagar ahora con tarjeta
+                                                <button type="submit" class="btn {{ $brickTarjeta ? 'btn-link text-decoration-none px-0' : 'btn-primary rounded-pill px-4' }}">
+                                                    <i class="bi bi-credit-card me-1"></i>
+                                                    {{ $brickTarjeta ? 'Prefiero pagar en la página de Mercado Pago' : 'Pagar ahora con tarjeta' }}
                                                 </button>
                                             </form>
                                         </div>
-                                        <div class="col-md-5">
+                                        <div class="col-md-5 pedido-qr-columna">
+                                            @if ($intentoTarjetaVivo)
+                                                <div class="border rounded-4 bg-white p-3 mb-3 text-center shadow-sm pedido-qr-flotante">
+                                                    <div class="fw-bold mb-2">¿Prefieres pagar desde tu celular?</div>
+                                                    <button type="button" class="checkout-qr-zoom mx-auto" data-bs-toggle="modal"
+                                                        data-bs-target="#qrZoomModal" data-qr-zoom="Mercado Pago"
+                                                        aria-label="Agrandar el código QR del pago con tarjeta">
+                                                        <img src="{{ \App\Support\Qr::data_uri($intentoTarjetaVivo->checkout_url, 512) }}"
+                                                            width="288" height="288" alt="Código QR que abre este mismo pago en Mercado Pago" loading="eager">
+                                                    </button>
+                                                    <p class="small text-muted mb-2">Acércalo a la cámara: se abre el pago de Mercado Pago en tu celular.</p>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary"
+                                                        data-copy-payment-number="{{ $intentoTarjetaVivo->checkout_url }}"
+                                                        data-copy-name="El enlace de pago" data-copy-note="Pégalo en el navegador del celular. Es el mismo pago, no un cobro nuevo.">
+                                                        <i class="bi bi-link-45deg me-1" aria-hidden="true"></i><span data-copy-label>Copiar enlace</span>
+                                                    </button>
+                                                    <div class="small text-muted mt-2">Vence a las {{ $intentoTarjetaVivo->expira_at->format('H:i') }}.</div>
+                                                </div>
+                                            @endif
                                             <div class="alert alert-info mb-0 small">
                                                 <i class="bi bi-info-circle me-1"></i>
                                                 El pago se completa en Mercado Pago y su confirmación puede tardar unos segundos.
@@ -399,6 +481,86 @@
                         </div>
                     </div>
                 </div>
+            @endif
+            @if ($brickTarjeta)
+                {{-- El formulario de tarjeta lo sirve Mercado Pago dentro de un iframe
+                     propio: aquí solo se le pasa el monto y se recibe el token ya
+                     generado. Por eso el número de tarjeta no entra en esta tienda. --}}
+                <script src="https://sdk.mercadopago.com/js/v2"></script>
+                <script>
+                    (function () {
+                        const contenedor = document.getElementById('cardPaymentBrick_container');
+                        const alternativa = document.getElementById('brick-pago-alternativo');
+                        const aviso = document.querySelector('[data-brick-error]');
+
+                        function mostrarAviso(texto) {
+                            if (!aviso) {
+                                return;
+                            }
+
+                            aviso.textContent = texto;
+                            aviso.hidden = false;
+                        }
+
+                        // Sin el SDK —corte de red, extensión que lo bloquea— el
+                        // contenedor quedaría vacío y el cliente sin saber qué tocar.
+                        // El botón de Mercado Pago de arriba sigue sirviendo el pago.
+                        if (!contenedor || !alternativa || typeof window.MercadoPago !== 'function') {
+                            contenedor && (contenedor.hidden = true);
+                            mostrarAviso('No se pudo cargar el formulario de tarjeta. Usa el botón de arriba para pagar en la página de Mercado Pago.');
+
+                            return;
+                        }
+
+                        async function cobrarTarjeta(datos) {
+                            const respuesta = await fetch('{{ route('web.pedidos.tarjeta.brick', $orden->id) }}', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': alternativa.querySelector('input[name="_token"]').value,
+                                },
+                                body: JSON.stringify({
+                                    token: datos.token,
+                                    payment_method_id: datos.paymentMethodId ?? datos.payment_method_id ?? null,
+                                    issuer_id: datos.issuerId ?? datos.issuer_id ?? null,
+                                    installments: datos.installments ?? 1,
+                                    email: datos.payer?.email ?? null,
+                                    first_name: datos.payer?.first_name ?? null,
+                                    last_name: datos.payer?.last_name ?? null,
+                                    dni: datos.payer?.identification?.number ?? null,
+                                    identification: datos.payer?.identification ?? null,
+                                    phone: datos.payer?.phone?.number ?? null,
+                                    address: datos.payer?.address ?? null,
+                                }),
+                            });
+
+                            const cuerpo = await respuesta.json().catch(() => null);
+
+                            if (cuerpo && cuerpo.redireccion && ['confirmado', 'pendiente'].includes(cuerpo.resultado)) {
+                                window.location.assign(cuerpo.redireccion);
+
+                                // Nunca se resuelve: el brick mostraría «pago exitoso»
+                                // y borraría el formulario un instante antes de recargar.
+                                return new Promise(() => {});
+                            }
+
+                            throw new Error((cuerpo && cuerpo.mensaje) || 'Mercado Pago no pudo procesar el pago y no se te cobró nada.');
+                        }
+
+                        const mp = new window.MercadoPago(@json($llavePublicaTarjeta), { locale: 'es-PE' });
+
+                        mp.bricks().create('cardPayment', 'cardPaymentBrick_container', {
+                            initialization: { amount: {{ (float) number_format((float) $orden->total, 2, '.', '') }} },
+                            callbacks: {
+                                // `onReady` es obligatorio para el CardPayment Brick.
+                                onReady: () => {},
+                                onSubmit: cobrarTarjeta,
+                                onError: (error) => mostrarAviso((error && error.message) || 'Mercado Pago no pudo mostrar el formulario de tarjeta.'),
+                            },
+                        });
+                    })();
+                </script>
             @endif
             <div class="row g-4">
                 <!-- PRODUCTOS -->
@@ -414,10 +576,10 @@
                                 <div class="d-flex justify-content-between align-items-center p-4 border-bottom">
                                     <div>
                                         <h6 class="fw-bold mb-1">
-                                            {{ $detalle->producto->nombre }}
+                                            {{ $detalle->producto?->nombre ?? 'Producto' }}
                                         </h6>
                                         @php
-                                            $imagen = $detalle->producto->imagen_principal_url;
+                                            $imagen = $detalle->producto?->imagen_principal_url;
                                         @endphp
                                         <img src="{{ $imagen }}" width="100px" alt="{{ $detalle->producto->nombre }}"
                                             onerror="this.onerror=null;this.src='{{ asset('storage/productos/default.webp') }}';"

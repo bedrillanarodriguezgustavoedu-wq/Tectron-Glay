@@ -23,7 +23,7 @@
                             <i class="bi bi-person-plus"></i>
                         </div>
                         <h2>Crea tu cuenta</h2>
-                        <p>Regístrate para guardar tus datos y comprar en Tectron Galy.</p>
+                        <p>Regístrate para guardar tus datos y comprar en GALY.</p>
                         <span class="customer-register__badge"><i class="bi bi-bag-check me-1" aria-hidden="true"></i> Cuenta de cliente</span>
                     </div>
 

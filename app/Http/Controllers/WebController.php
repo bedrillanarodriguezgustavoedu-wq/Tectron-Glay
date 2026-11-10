@@ -253,7 +253,7 @@ class WebController extends Controller
     public function marcas()
     {
         $ajuste = Ajuste::first();
-        $marcas = Marca::where('activo', true)->withCount('productos')->get();
+        $marcas = Marca::where('activo', true)->withCount('productos')->orderBy('nombre')->get();
 
         return view('web.marcas', compact('ajuste', 'marcas'));
     }
@@ -391,6 +391,13 @@ class WebController extends Controller
         $contenido = $footer_settings->terminos_condiciones_contenido ?? '<h1>Términos y Condiciones</h1><p>Contenido por defecto.</p>';
 
         return view('web.legal', compact('ajuste', 'contenido'));
+    }
+
+    public function pagoSeguro()
+    {
+        $ajuste = Ajuste::first();
+
+        return view('web.pago_seguro', compact('ajuste'));
     }
 
     public function privacidad()

@@ -15,16 +15,26 @@ class MarcaController extends Controller
     public function index(Request $request)
     {
         $buscar = $request->get('buscar');
-        $query = Marca::query();
+        $query = Marca::query()->orderBy('nombre');
 
         if ($buscar) {
             $query->where('nombre', 'like', '%'.$buscar.'%');
         }
 
         // Show products count as requested: "Mostrar cantidad de productos asociados"
-        $marcas = $query->withCount('productos')->paginate(10);
+        $marcas = $query->withCount('productos')->paginate(10)->withQueryString();
 
-        return view('admin.marcas.index', compact('marcas'));
+        $totalMarcas = Marca::count();
+        $marcasActivas = Marca::where('activo', true)->count();
+        $marcasConLogo = Marca::whereNotNull('imagen')->where('imagen', '<>', '')->count();
+
+        return view('admin.marcas.index', compact(
+            'marcas',
+            'buscar',
+            'totalMarcas',
+            'marcasActivas',
+            'marcasConLogo'
+        ));
     }
 
     /**

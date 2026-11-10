@@ -3,21 +3,30 @@
 @php
     $precioParaBuscador = $producto->en_oferta ? $producto->precio_oferta : $producto->precio_venta;
     $descripcionParaBuscador = trim($producto->descripcion_corta ?: strip_tags((string) $producto->descripcion_larga));
+    $sinStock = (int) ($producto->stock ?? 0) <= 0;
+    $descuentoProducto = 0;
+    if ($producto->en_oferta && $producto->precio_venta > 0 && $producto->precio_oferta > 0) {
+        $descuentoProducto = (int) round((1 - ($producto->precio_oferta / $producto->precio_venta)) * 100);
+    }
 @endphp
 
 @section('title', $producto->nombre.' · '.\App\Models\Ajuste::formatear_precio($precioParaBuscador))
 @section('meta_descripcion', \Illuminate\Support\Str::limit($descripcionParaBuscador, 155))
 
 @section('content')
-    <!-- Page Title -->
-    <div class="page-title light-background">
-        <div class="container d-lg-flex justify-content-between align-items-center">
-            <h1 class="mb-2 mb-lg-0">Detalle del producto: {{ $producto->nombre }}</h1>
-            <nav class="breadcrumbs">
-                <ol>
-                    <li><a href="{{ url('/') }}">Principal</a></li>
-                    <li class="current">Detalle del producto</li>
-                </ol>
+    <!-- Migas de pan -->
+    <div class="g-page-head g-page-head--compact">
+        <div class="container">
+            <nav class="g-crumbs" aria-label="Ruta de navegación">
+                <a href="{{ route('web.index') }}">Inicio</a>
+                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                <a href="{{ route('web.productos') }}">Productos</a>
+                @if ($producto->categoria)
+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                    <a href="{{ route('web.categoria', $producto->categoria->slug) }}">{{ $producto->categoria->nombre }}</a>
+                @endif
+                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                <span aria-current="page">{{ \Illuminate\Support\Str::limit($producto->nombre, 60) }}</span>
             </nav>
         </div>
     </div><!-- End Page Title -->
@@ -106,84 +115,117 @@
                         <div class="pricing-section">
                             <div class="price-display">
                                 @if ($producto->en_oferta)
-                                    <span class="original-price text-decoration-line-through text-muted small me-2" style="font-size: 1.2rem;">{{ \App\Models\Ajuste::formatear_precio($producto->precio_venta) }}</span>
-                                    <span class="sale-price text-danger fw-bold fs-2">{{ \App\Models\Ajuste::formatear_precio($producto->precio_oferta) }}</span>
+                                    <span class="sale-price text-danger">{{ \App\Models\Ajuste::formatear_precio($producto->precio_oferta) }}</span>
+                                    <span class="original-price text-decoration-line-through text-muted ms-2">{{ \App\Models\Ajuste::formatear_precio($producto->precio_venta) }}</span>
+                                    @if ($descuentoProducto > 0)
+                                        <span class="g-detail-save">Ahorras {{ $descuentoProducto }}%</span>
+                                    @endif
                                 @else
                                     <span class="sale-price">{{ \App\Models\Ajuste::formatear_precio($producto->precio_venta) }}</span>
                                 @endif
                             </div>
                         </div>
 
-                        <div class="product-description">
-                            <p>{{ $producto->descripcion_corta }}</p>
-                        </div>
+                        @if ($producto->descripcion_corta)
+                            <div class="product-description">
+                                <p>{{ $producto->descripcion_corta }}</p>
+                            </div>
+                        @endif
 
                         <div class="availability-status">
-                            <div class="stock-indicator">
-                                <i class="bi bi-check-circle-fill"></i>
-                                <span class="stock-text">Disponible</span>
-                            </div>
-                            <div class="quantity-left">Solo quedan {{ $producto->stock }} productos</div>
+                            @if ($sinStock)
+                                <div class="stock-indicator is-out">
+                                    <i class="bi bi-x-circle-fill"></i>
+                                    <span class="stock-text">Agotado temporalmente</span>
+                                </div>
+                            @else
+                                <div class="stock-indicator">
+                                    <i class="bi bi-check-circle-fill"></i>
+                                    <span class="stock-text">En stock</span>
+                                </div>
+                                @if ($producto->stock <= 10)
+                                    <div class="quantity-left">Solo quedan {{ $producto->stock }} unidades</div>
+                                @else
+                                    <div class="quantity-left">Listo para enviar</div>
+                                @endif
+                            @endif
                         </div>
+
                         <form action="{{ url('/carrito/agregar') }}" method="POST" id="product-purchase-form">
                             @csrf
-                            <!-- Purchase Options -->
-                            <div class="purchase-section">
-                                <div class="quantity-control">
-                                    <label class="control-label">Cantidad:</label>
-                                    <div class="quantity-input-group">
-                                        <div class="quantity-selector">
-                                            <button class="quantity-btn decrease" type="button">
-                                                <i class="bi bi-dash"></i>
-                                            </button>
-                                            <input type="number" name="cantidad" class="quantity-input" value="1" min="1"
-                                                max="{{ $producto->stock }}">
-                                            <button class="quantity-btn increase" type="button">
-                                                <i class="bi bi-plus"></i>
-                                            </button>
-                                        </div>
-                                    </div>
+                            <input type="hidden" name="producto_id" value="{{ $producto->id }}">
+
+                            <div class="g-buy-row">
+                                <div class="quantity-selector" role="group" aria-label="Cantidad">
+                                    <button class="quantity-btn decrease" type="button" aria-label="Quitar una unidad">
+                                        <i class="bi bi-dash" aria-hidden="true"></i>
+                                    </button>
+                                    <input type="number" name="cantidad" class="quantity-input" value="1" min="1"
+                                        max="{{ max(1, (int) $producto->stock) }}" {{ $sinStock ? 'disabled' : '' }}>
+                                    <button class="quantity-btn increase" type="button" aria-label="Agregar una unidad">
+                                        <i class="bi bi-plus" aria-hidden="true"></i>
+                                    </button>
                                 </div>
 
-                                <div class="action-buttons">
+                                <button class="btn primary-action" {{ $sinStock ? 'disabled' : '' }}>
+                                    <i class="bi bi-bag-plus" aria-hidden="true"></i>
+                                    {{ $sinStock ? 'Producto agotado' : 'Agregar al carrito' }}
+                                </button>
+                            </div>
+                        </form>
 
-                                    <input type="hidden" name="producto_id" value="{{ $producto->id }}">
-                                    <button class="btn primary-action">
-                                        <i class="bi bi-bag-plus"></i>
-                                        agregar al carrito
-                                    </button>
-                        </form>
-                        <form action="{{ route('web.reservas.store') }}" method="POST" class="mt-2">
-                            @csrf
-                            <input type="hidden" name="producto_id" value="{{ $producto->id }}">
-                            <input type="hidden" name="cantidad" id="reservation-quantity" value="1">
-                            <button type="submit" class="btn btn-outline-primary w-100">
-                                <i class="bi bi-bookmark-check me-1"></i>Apartar por 24 horas
-                            </button>
-                            @error('cantidad')
-                                <small class="text-danger d-block mt-1">{{ $message }}</small>
-                            @enderror
-                            @error('producto_id')
-                                <small class="text-danger d-block mt-1">{{ $message }}</small>
-                            @enderror
-                        </form>
-                        <form action="{{ url('/favoritos') }}" method="POST">
-                            @csrf
-                            <input type="hidden" name="producto_id" value="{{ $producto->id }}">
-                            <button type="submit" class="btn icon-action">
-                                <i class="bi bi-heart"></i>
-                            </button>
-                        </form>
+                        <div class="g-buy-secondary">
+                            <form action="{{ route('web.reservas.store') }}" method="POST">
+                                @csrf
+                                <input type="hidden" name="producto_id" value="{{ $producto->id }}">
+                                <input type="hidden" name="cantidad" id="reservation-quantity" value="1">
+                                <button type="submit" class="btn btn-outline-primary w-100" {{ $sinStock ? 'disabled' : '' }}>
+                                    <i class="bi bi-bookmark-check me-1" aria-hidden="true"></i> Apartar 24 h
+                                </button>
+                                @error('cantidad')
+                                    <small class="text-danger d-block mt-1">{{ $message }}</small>
+                                @enderror
+                                @error('producto_id')
+                                    <small class="text-danger d-block mt-1">{{ $message }}</small>
+                                @enderror
+                            </form>
+                            <form action="{{ url('/favoritos') }}" method="POST">
+                                @csrf
+                                <input type="hidden" name="producto_id" value="{{ $producto->id }}">
+                                <button type="submit" class="btn icon-action" title="Guardar en favoritos" aria-label="Guardar en favoritos">
+                                    <i class="bi bi-heart" aria-hidden="true"></i>
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Medios de pago -->
+                        <div class="g-pay-note">
+                            <i class="bi bi-shield-lock" aria-hidden="true"></i>
+                            <span>Paga seguro con <strong>Yape</strong>, <strong>Plin</strong>, tarjeta o transferencia.</span>
+                        </div>
                     </div>
 
                     <script>
                         document.querySelector('#product-purchase-form input[name="cantidad"]')?.addEventListener('input', event => {
                             document.getElementById('reservation-quantity').value = event.target.value;
                         });
+                        document.querySelectorAll('.quantity-btn').forEach(function (btn) {
+                            btn.addEventListener('click', function () {
+                                var input = document.querySelector('#product-purchase-form input[name="cantidad"]');
+                                if (!input) return;
+                                var value = parseInt(input.value || '1', 10);
+                                var max = parseInt(input.max || '1', 10);
+                                if (btn.classList.contains('increase')) value = Math.min(max, value + 1);
+                                else value = Math.max(1, value - 1);
+                                input.value = value;
+                                input.dispatchEvent(new Event('input', { bubbles: true }));
+                            });
+                        });
                     </script>
                 </div>
 
                 <!-- Benefits List -->
+                <div class="col-12">
                 <div class="benefits-list">
                     <div class="benefit-item">
                         <i class="bi bi-truck"></i>
@@ -235,6 +277,7 @@
                         </a>
                     </div>
                 @endif
+            </div>
             </div>
         </div>
         </div>

@@ -76,7 +76,7 @@ return [
                 'GALY_DB_DATABASE',
                 env('APP_ENV') === 'testing'
                     ? env('DB_DATABASE', database_path('database.sqlite'))
-                    : 'ecommerce'
+                    : 'galy'
             ),
             'username' => env('GALY_DB_USERNAME', env('DB_USERNAME', 'root')),
             'password' => env('GALY_DB_PASSWORD', env('DB_PASSWORD', '')),

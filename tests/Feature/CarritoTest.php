@@ -414,10 +414,12 @@ class CarritoTest extends TestCase
             'Plin' => strpos($html, 'id="pago_plin"'),
         ];
 
-        $this->assertGreaterThan(
+        // La referencia que eligió el dueño ordena la lista tarjeta → código QR →
+        // Yape, así que Plin quedó delante de Yape. Sigue sin aparecer BCP.
+        $this->assertLessThan(
             $posiciones['Yape'],
             $posiciones['Plin'],
-            'Plin debe aparecer ultimo en el checkout'
+            'El código QR debe aparecer antes que Yape en el checkout'
         );
 
         // Los QR suben como foto de pantalla: sin agrandarlos el cliente no puede

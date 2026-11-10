@@ -70,10 +70,13 @@ class AsesorComercialTest extends TestCase
 
     private function tarjetasDeAsesores(string $contenido): string
     {
-        $inicio = mb_strpos($contenido, 'Asesores Comerciales');
+        // Se ancla a la rejilla y no al título: el título también aparece en
+        // <title>, y desde ahí se colaba el encabezado de la tienda (que sí
+        // publica el WhatsApp de atención) en el tramo revisado.
+        $inicio = mb_strpos($contenido, 'id="grid-asesores"');
         $fin = mb_strpos($contenido, '</section>', $inicio);
 
-        $this->assertNotFalse($inicio, 'La página no renderiza el título de asesores.');
+        $this->assertNotFalse($inicio, 'La página no renderiza la rejilla de asesores.');
         $this->assertNotFalse($fin, 'La sección de asesores no cierra antes del pie de página.');
 
         return mb_substr($contenido, $inicio, $fin - $inicio);

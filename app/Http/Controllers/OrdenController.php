@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\ComprobanteRecibido;
 use App\Mail\CompraConfirmada;
 use App\Models\Ajuste;
 use App\Models\IntentoPagoMercadoPago;
@@ -20,10 +21,10 @@ class OrdenController extends Controller
 {
     public function confirmacion($id)
     {
-        $usuarioId = auth()->user()->resolveGalyUserId();
+        $usuarioId = auth()->user()?->resolveGalyUserId();
         abort_if($usuarioId === null, 403);
 
-        $orden = Orden::with(['detalles.producto', 'pagoManual'])
+        $orden = Orden::with(['detalles.producto', 'pagoManual', 'intentosPago'])
             ->where('usuario_id', $usuarioId)
             ->findOrFail($id);
         $ajuste = Ajuste::first();
@@ -247,7 +248,7 @@ class OrdenController extends Controller
         $historial = new \App\Models\PedidoHistorial();
         $historial->orden_id = $orden->id;
         $historial->estado_anterior = $estado_anterior;
-        $historial->estado_nuevo = $siguiente_estado;
+        $historial->estado_nuevo = $siguiente_estado ?: 'En proceso';
         $historial->fecha = now()->toDateString();
         $historial->hora = now()->toTimeString();
         $historial->nota = $request->input('nota') ?? ('Pedido cambiado a: ' . $siguiente_estado);
@@ -272,6 +273,7 @@ class OrdenController extends Controller
      */
     public function crearPedidoPagoManual(Request $request, ReservaProductoService $reservations, MercadoPagoService $mercadoPago)
     {
+        try {
         // Solo se exige un punto cuando la tienda publicó al menos uno: mientras
         // no existan, el carrito muestra la dirección general de Ajustes y el
         // cliente no tiene nada que elegir. `deTienda()` deja fuera las agencias
@@ -302,6 +304,14 @@ class OrdenController extends Controller
             // carrito, y aceptar el valor por POST crearía un pedido cuyo destino
             // ya no se le muestra al cliente.
             'metodo_pago' => 'required|string|in:yape,plin,tarjeta',
+            // Token ya generado por Checkout Bricks. La tienda no recibe el
+            // número ni el CVV: solo este token de un solo uso, y únicamente se
+            // cobra si la bandera y la Public Key están encendidas.
+            'brick_token' => 'nullable|string|max:255',
+            'brick_payment_method_id' => 'nullable|string|max:60',
+            'brick_issuer_id' => 'nullable|integer|min:1',
+            'brick_installments' => 'nullable|integer|between:1,60',
+            'brick_email' => 'nullable|email:rfc|max:190',
         ];
 
         if ($hayPuntosRecojo) {
@@ -335,12 +345,12 @@ class OrdenController extends Controller
             'agencia_provincia_id.exists' => 'Esa agencia no atiende en la ciudad de tu dirección. Elige otra.',
         ]);
 
-        if (! auth()->user()->google_id || ! auth()->user()->email_verified_at) {
+        if (! auth()->user()?->google_id || ! auth()->user()?->email_verified_at) {
             return redirect()->route('web.login')
                 ->with('google_login_error', 'Verifica tu correo iniciando sesión con Google antes de pagar.');
         }
 
-        $usuarioId = auth()->user()->resolveGalyUserId();
+        $usuarioId = auth()->user()?->resolveGalyUserId();
         if ($usuarioId === null) {
             return redirect()->route('web.carrito.index')
                 ->with('mensaje', 'No se encontró una cuenta GALY vinculada a este correo. Inicia sesión con tu cuenta GALY para compartir el carrito.')
@@ -349,6 +359,26 @@ class OrdenController extends Controller
 
         $ajuste = Ajuste::first();
         $metodo = $validated['metodo_pago'];
+        // El QR no se puede pegar en el carrito: antes de este POST no existe
+        // ningún cheque y un QR pagable sin pedido sería plata que llega a Mercado
+        // Pago sin compra asociada. Este botón crea el pedido y lleva a la ficha
+        // donde ese mismo cheque ya se puede escanear.
+        $pagoDesdeCelular = $metodo === 'tarjeta' && $request->boolean('pago_celular');
+        // El paso de tarjeta del carrito ofrece el QR junto al formulario, pero
+        // solo lo pide cuando el cliente toca su botón. Ese QR es el enlace real
+        // de Mercado Pago del pedido que se acaba de crear: no se puede fabricar
+        // antes, porque un código pagable sin compra dejaría un cobro sin pedido
+        // asociado. Se responde JSON para pintarlo en la misma ventana, sin sacar
+        // al cliente de la tienda.
+        $quiereQrTarjeta = $metodo === 'tarjeta' && $request->boolean('qr_tarjeta');
+        // El formulario de tarjeta dentro de la tienda devuelve un token ya
+        // creado: se cobra en la misma petición que registra el pedido, sin
+        // guardar nunca el número ni el CVV. Nunca convive con el QR: pedir el
+        // QR no debe cobrar la tarjeta que quedó a medio escribir.
+        $cobroBrick = $metodo === 'tarjeta'
+            && ! $quiereQrTarjeta
+            && $request->filled('brick_token')
+            && $mercadoPago->brickListo();
 
         if ($metodo === 'tarjeta') {
             if (! $ajuste?->web_mercadopago_activa || ! $mercadoPago->sePuedeOfrecer()) {
@@ -471,7 +501,7 @@ class OrdenController extends Controller
                 ->with('icono', 'warning');
         }
 
-        auth()->user()->forceFill([
+        auth()->user()?->forceFill([
             'name' => trim($validated['name']),
             'dni' => $validated['dni'],
             'telefono' => trim($validated['telefono']),
@@ -499,7 +529,7 @@ class OrdenController extends Controller
                 'modalidad_entrega' => $modalidad,
                 'monto' => (float) $total,
                 'divisa' => (string) ($ajuste?->divisa ?: config('services.mercadopago.currency')),
-                'correo' => auth()->user()->email,
+                'correo' => auth()->user()?->email,
             ]);
 
             if ($intento->estado === IntentoPagoMercadoPago::ESTADO_FALLIDO) {
@@ -630,6 +660,39 @@ class OrdenController extends Controller
 
             $this->notificarPedidoRegistrado($orden);
 
+            if ($quiereQrTarjeta) {
+                // El pedido ya está creado y el intento ligado a él. El QR se
+                // genera con el enlace real de esa preferencia: es el mismo
+                // cheque que muestra la ficha del pedido, no una pasarela nueva.
+                return response()->json([
+                    'orden_id' => $orden->id,
+                    'total' => Ajuste::formatear_precio($orden->total),
+                    'checkout_url' => $intento->checkout_url,
+                    'qr' => \App\Support\Qr::data_uri((string) $intento->checkout_url, 512),
+                    'confirmacion_url' => route('web.pedidos.confirmacion', $orden->id),
+                    'expira_at' => $intento->expira_at?->toIso8601String(),
+                ]);
+            }
+
+            if ($cobroBrick) {
+                return $this->cobrarConBrick($orden, $intento, $mercadoPago, $request);
+            }
+
+            if ($pagoDesdeCelular) {
+                return redirect()->route('web.pedidos.confirmacion', $orden->id)
+                    ->with('mensaje', 'Pedido creado. Escanea el QR de esta pantalla con tu celular para pagar con tarjeta.')
+                    ->with('icono', 'success');
+            }
+
+            // Con el formulario de tarjeta de Mercado Pago montado aquí no hay a
+            // dónde mandar al cliente: paga en su propia pantalla y el enlace del
+            // checkout sigue disponible para quien prefiera salir de la tienda.
+            if ($mercadoPago->brickListo()) {
+                return redirect()->route('web.pedidos.confirmacion', $orden->id)
+                    ->with('mensaje', 'Pedido creado. Escribe tu tarjeta en esta misma pantalla para completar el pago.')
+                    ->with('icono', 'success');
+            }
+
             return redirect()->away($intento->checkout_url);
         }
 
@@ -638,15 +701,140 @@ class OrdenController extends Controller
         return redirect()->route('web.pedidos.confirmacion', $orden->id)
             ->with('mensaje', 'Pedido creado. Realiza la transferencia y envía el comprobante para que la tienda revise el pago.')
             ->with('icono', 'success');
+        } catch (\Throwable $exception) {
+            if ($exception instanceof \Symfony\Component\HttpKernel\Exception\HttpException
+                || $exception instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+                || $exception instanceof \Illuminate\Auth\Access\AuthorizationException
+                || $exception instanceof \Illuminate\Validation\ValidationException) {
+                throw $exception;
+            }
+
+            report($exception);
+
+            return redirect()->route('web.carrito.index')
+                ->with('mensaje', 'No se pudo registrar el pedido. Intenta nuevamente o contacta a la tienda.')
+                ->with('icono', 'error');
+        }
+    }
+
+    /**
+     * Cobra la tarjeta con el token que devolvió Checkout Bricks. El pedido ya
+     * quedó registrado y el intento ya existe: si Mercado Pago falla o rechaza,
+     * el cliente vuelve a su pedido y puede reintentar sin que se cobre dos
+     * veces. La tienda nunca ve el número ni el CVV.
+     */
+    private function cobrarConBrick(
+        Orden $orden,
+        IntentoPagoMercadoPago $intento,
+        MercadoPagoService $mercadoPago,
+        Request $request
+    ) {
+        try {
+            $pago = $mercadoPago->crearPagoDirecto($intento, [
+                'token' => (string) $request->input('brick_token'),
+                'payment_method_id' => (string) $request->input('brick_payment_method_id'),
+                'issuer_id' => $request->input('brick_issuer_id'),
+                'installments' => $request->input('brick_installments', 1),
+                'email' => $request->input('brick_email') ?: auth()->user()?->email,
+                'first_name' => auth()->user()?->name,
+                'dni' => auth()->user()?->dni,
+                'phone' => auth()->user()?->telefono,
+                'address' => $this->direccionFacturacion($orden),
+            ]);
+        } catch (\Throwable $exception) {
+            if ($exception instanceof \Symfony\Component\HttpKernel\Exception\HttpException
+                || $exception instanceof \Illuminate\Database\Eloquent\ModelNotFoundException
+                || $exception instanceof \Illuminate\Auth\Access\AuthorizationException
+                || $exception instanceof \Illuminate\Validation\ValidationException) {
+                throw $exception;
+            }
+
+            // El cuerpo de Mercado Pago es para el dueño, no para el cliente:
+            // mostrarlo tal cual revelaría referencias internas.
+            report($exception);
+
+            $falloDeRed = $exception instanceof \Illuminate\Http\Client\ConnectionException
+                || str_contains($exception->getMessage(), 'timed out')
+                || str_contains($exception->getMessage(), 'Could not resolve')
+                || str_contains($exception->getMessage(), 'cURL error');
+
+            // Un timeout no prueba que no hubo cobro: la respuesta pudo
+            // perderse después de que Mercado Pago lo aprobara.
+            $pagoTardio = $falloDeRed
+                ? $mercadoPago->pagoTrasFalloDeRed($intento)
+                : null;
+
+            if ($pagoTardio !== null) {
+                $mercadoPago->aplicarPagoAlIntento($intento, $pagoTardio, 'brick');
+
+                $confirmado = $intento->estado === IntentoPagoMercadoPago::ESTADO_CONFIRMADO;
+
+                return redirect()->route('web.pedidos.confirmacion', $orden->id)
+                    ->with('mensaje', $confirmado
+                        ? 'Mercado Pago confirmó tu pago. Tu pedido ya está en proceso.'
+                        : 'Mercado Pago sí registró un cobro, pero el banco aún no lo confirma. No repitas el pago: el pedido se actualiza solo.')
+                    ->with('icono', $confirmado ? 'success' : 'info');
+            }
+
+            $mensaje = $falloDeRed
+                ? 'No pudimos comunicarnos con Mercado Pago y no se registró ningún cobro. Puedes intentarlo otra vez en esta pantalla.'
+                : 'Mercado Pago no pudo procesar el pago y no se te cobró nada. Puedes intentarlo otra vez en esta pantalla.';
+
+            return redirect()->route('web.pedidos.confirmacion', $orden->id)
+                ->with('mensaje', $mensaje)
+                ->with('icono', 'error');
+        }
+
+        $mercadoPago->aplicarPagoAlIntento($intento, $pago, 'brick');
+
+        return match ($intento->estado) {
+            IntentoPagoMercadoPago::ESTADO_CONFIRMADO => redirect()
+                ->route('web.pedidos.confirmacion', $orden->id)
+                ->with('mensaje', 'Pago confirmado. Tu pedido ya está en proceso.')
+                ->with('icono', 'success'),
+            IntentoPagoMercadoPago::ESTADO_FALLIDO => redirect()
+                ->route('web.pedidos.confirmacion', $orden->id)
+                ->with('mensaje', 'Tu tarjeta fue rechazada y no se te cobró nada. Puedes probar otra vez con la misma u otra tarjeta.')
+                ->with('icono', 'warning'),
+            default => redirect()
+                ->route('web.pedidos.confirmacion', $orden->id)
+                ->with('mensaje', 'El banco todavía no confirma el cobro. No repitas el pago: el pedido se actualiza solo.')
+                ->with('icono', 'info'),
+        };
     }
 
     /**
      * El correo es una comodidad, no parte del cobro: si el servidor de correo
      * falla, el pedido ya quedó registrado y el cliente igual lo ve en la web.
      */
+    /**
+     * Arma la dirección de facturación estructurada para Mercado Pago a partir
+     * de la dirección del pedido (si existe) o del texto libre guardado.
+     *
+     * @return array<string, mixed>|string|null
+     */
+    private function direccionFacturacion(Orden $orden): array|string|null
+    {
+        $direccion = $orden->direccion()->first();
+
+        if ($direccion) {
+            $calle = trim((string) $direccion->direccion_exacta);
+
+            return array_filter([
+                'street_name' => $calle !== '' ? $calle : null,
+                'street_number' => null,
+                'zip_code' => (string) ($direccion->codigo_postal ?? ''),
+            ], fn ($v) => $v !== null && $v !== '');
+        }
+
+        $texto = trim((string) $orden->direccion_envio);
+
+        return $texto !== '' ? $texto : null;
+    }
+
     private function notificarPedidoRegistrado(Orden $orden): void
     {
-        $correo = (string) (auth()->user()->email ?? $orden->cliente_email);
+        $correo = (string) (auth()->user()?->email ?? $orden->cliente_email);
 
         if ($correo === '') {
             return;
@@ -662,13 +850,44 @@ class OrdenController extends Controller
         }
     }
 
+    /**
+     * Yape y Plin no tienen cómo avisar un abono: el único disparador que tiene la
+     * tienda es este correo. Si el servidor de correo falla, el comprobante igual
+     * quedó guardado y el panel lo sigue mostrando en «por revisar».
+     */
+    private function notificarComprobanteRecibido(Orden $orden, PagoManual $pago): void
+    {
+        $correo = (string) (Ajuste::first()?->email ?? '');
+
+        if ($correo === '') {
+            Log::warning('Llegó un comprobante pero la tienda no tiene correo de aviso en Ajustes.', [
+                'pedido_id' => $orden->id,
+            ]);
+
+            return;
+        }
+
+        try {
+            Mail::to($correo)->send(new ComprobanteRecibido(
+                $orden,
+                $pago,
+                route('admin.pedidos.create', $orden->id)
+            ));
+        } catch (\Throwable $exception) {
+            Log::error('No se pudo avisar a la tienda del comprobante recibido.', [
+                'pedido_id' => $orden->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
     public function enviarComprobantePagoManual(Request $request, $id)
     {
         $request->validate([
             'comprobante' => 'required|image|mimes:jpeg,jpg,png,webp|max:5120',
         ]);
 
-        $usuarioId = auth()->user()->resolveGalyUserId();
+        $usuarioId = auth()->user()?->resolveGalyUserId();
         if ($usuarioId === null) {
             return redirect()->route('web.carrito.index')
                 ->with('mensaje', 'No se encontró una cuenta GALY vinculada a este correo. Inicia sesión con tu cuenta GALY para consultar tus pedidos.')
@@ -699,6 +918,8 @@ class OrdenController extends Controller
             Storage::disk('local')->delete($previousPath);
         }
 
+        $this->notificarComprobanteRecibido($orden, $pago);
+
         return redirect()->route('web.pedidos.confirmacion', $orden->id)
             ->with('mensaje', 'Comprobante enviado. El pedido seguirá pendiente hasta que la tienda confirme la transferencia.')
             ->with('icono', 'success');
@@ -706,7 +927,7 @@ class OrdenController extends Controller
 
     public function verMiComprobantePagoManual($id)
     {
-        $usuarioId = auth()->user()->resolveGalyUserId();
+        $usuarioId = auth()->user()?->resolveGalyUserId();
         abort_if($usuarioId === null, 403);
 
         $orden = Orden::where('usuario_id', $usuarioId)->findOrFail($id);
@@ -789,7 +1010,7 @@ class OrdenController extends Controller
             $historial = new \App\Models\PedidoHistorial();
             $historial->orden_id = $orden->id;
             $historial->estado_anterior = $estadoAnterior;
-            $historial->estado_nuevo = $orden->estado_orden;
+            $historial->estado_nuevo = $orden->estado_orden ?: 'En proceso';
             $historial->fecha = now()->toDateString();
             $historial->hora = now()->toTimeString();
             $historial->nota = match (true) {
