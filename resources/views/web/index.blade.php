@@ -3,31 +3,22 @@
 @section('content')
     
     {{-- Banner de bienvenida --}}
-    <section class="welcome-hero" style="position:relative;overflow:hidden;min-height:520px;margin-bottom:1.75rem;border-radius:16px;">
+    <section class="welcome-hero" style="position:relative;overflow:hidden;height:460px;margin-bottom:1.75rem;border-radius:16px;">
         <img src="{{ asset('assets/img/banner-bienvenida.jpg') }}" alt="Bienvenido a Tectron Galy"
-            style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.88);">
-        <div style="position:absolute;inset:0;background:linear-gradient(100deg,rgba(15,23,42,.95) 0%,rgba(15,23,42,.75) 40%,rgba(15,23,42,.3) 100%);"></div>
+            style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.92);">
+        <div style="position:absolute;inset:0;background:linear-gradient(100deg,rgba(15,23,42,.92) 0%,rgba(15,23,42,.7) 45%,rgba(15,23,42,.25) 100%);"></div>
         <div class="container h-100" style="position:relative;z-index:2;">
-            <div class="row h-100 align-items-center py-5">
-                <div class="col-lg-7 text-white">
+            <div class="row h-100 align-items-center">
+                <div class="col-lg-6 text-white py-4">
                     <span class="badge bg-success mb-3 px-3 py-2" style="font-size:.8rem;letter-spacing:2px;font-weight:600;">
-                        <i class="bi bi-lightning-charge-fill me-1"></i>BIENVENIDO A TECTRON GALY
+                        <i class="bi bi-lightning-charge-fill me-1"></i>BIENVENIDO
                     </span>
-                    <h1 class="fw-bold mb-2" style="font-size:clamp(2.4rem,5.5vw,4rem);text-shadow:0 4px 16px rgba(0,0,0,.6);line-height:1.05;">
-                        Tu tienda de<br><span style="color:#10b981;">tecnología</span> y accesorios
+                    <h1 class="fw-bold mb-2" style="font-size:clamp(2.2rem,5vw,3.5rem);text-shadow:0 4px 12px rgba(0,0,0,.6);line-height:1.1;">
+                        Tectron Galy
                     </h1>
-                    <p class="mb-4" style="font-size:1.15rem;text-shadow:0 2px 6px rgba(0,0,0,.5);max-width:520px;opacity:.95;">
-                        Laptops, accesorios, componentes y más. Envío a todo el Perú, pago 100% seguro con Yape, Plin y tarjetas.
+                    <p class="mb-3" style="font-size:1.15rem;text-shadow:0 2px 6px rgba(0,0,0,.5);max-width:480px;">
+                        Tu tienda de tecnología y accesorios. Envío a todo el Perú, pago 100% seguro.
                     </p>
-                    {{-- Buscador --}}
-                    <form action="{{ route('web.buscar_producto') }}" method="GET" class="mb-4" style="max-width:480px;">
-                        <div class="input-group input-group-lg">
-                            <input type="text" name="buscar" class="form-control border-0" placeholder="¿Qué estás buscando?" style="border-radius:12px 0 0 12px;">
-                            <button class="btn btn-success" type="submit" style="border-radius:0 12px 12px 0;">
-                                <i class="bi bi-search"></i> Buscar
-                            </button>
-                        </div>
-                    </form>
                     <div class="d-flex gap-2 flex-wrap mb-3">
                         <a href="{{ route('web.productos') }}" class="btn btn-success btn-lg fw-bold px-4">
                             <i class="bi bi-bag me-2"></i>Comprar ahora
@@ -40,7 +31,6 @@
                         <span><i class="bi bi-truck me-1"></i>Envío a todo el Perú</span>
                         <span><i class="bi bi-shield-check me-1"></i>Pago seguro</span>
                         <span><i class="bi bi-credit-card me-1"></i>Yape, Plin y tarjetas</span>
-                        <span><i class="bi bi-arrow-return-left me-1"></i>Cambios sin complicaciones</span>
                     </div>
                 </div>
             </div>
@@ -185,6 +175,40 @@
             border-color: #0d6efd !important;
         }
     </style>
+
+    {{-- Tira de confianza --}}
+    <div class="container mb-4">
+        <div class="row g-3 text-center">
+            <div class="col-6 col-md-3">
+                <div class="p-3 rounded-3 bg-light h-100">
+                    <i class="bi bi-truck text-success fs-3 d-block mb-1"></i>
+                    <strong class="d-block">Envío a todo el Perú</strong>
+                    <small class="text-muted">Despacho rápido y seguimiento</small>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-3 rounded-3 bg-light h-100">
+                    <i class="bi bi-shield-check text-success fs-3 d-block mb-1"></i>
+                    <strong class="d-block">Pago 100% seguro</strong>
+                    <small class="text-muted">Mercado Pago, Yape, Plin</small>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-3 rounded-3 bg-light h-100">
+                    <i class="bi bi-arrow-repeat text-success fs-3 d-block mb-1"></i>
+                    <strong class="d-block">Cambios sin complicaciones</strong>
+                    <small class="text-muted">Garantía en tus compras</small>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-3 rounded-3 bg-light h-100">
+                    <i class="bi bi-headset text-success fs-3 d-block mb-1"></i>
+                    <strong class="d-block">Soporte técnico</strong>
+                    <small class="text-muted">Asesoría especializada</small>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="g-home-hero">
     @if ($banners->isNotEmpty())
