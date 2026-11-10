@@ -107,6 +107,11 @@
                                 <input class="form-check-input" type="checkbox" name="activo" id="activo" value="1" checked>
                                 <label class="form-check-label fw-bold" for="activo">Banner Activo (Visible según fecha)</label>
                             </div>
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" name="portada" id="portada" value="1" {{ old('portada') ? 'checked' : '' }}>
+                                <label class="form-check-label fw-bold" for="portada">Usar como portada de bienvenida (inicio)</label>
+                                <div><small class="text-muted">La portada es fija arriba del inicio y no se repite en el carrusel.</small></div>
+                            </div>
                         </div>
 
                         <div class="form-group">

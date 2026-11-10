@@ -2,26 +2,45 @@
 
 @section('content')
     
+    @php
+        // La portada de bienvenida se administra en Admin → Banners con la
+        // casilla "Usar como portada de bienvenida". Se muestra fija arriba y
+        // se quita del carrusel para que la misma imagen no salga dos veces.
+        $bannerBienvenida = $banners->firstWhere('portada', true)
+            ?? $banners->first(fn ($b) => \Illuminate\Support\Str::contains(
+                \Illuminate\Support\Str::lower((string) $b->titulo),
+                'bienvenid'
+            ));
+        $bannersCarrusel = $bannerBienvenida
+            ? $banners->reject(fn ($b) => $b->id === $bannerBienvenida->id)->values()
+            : $banners;
+        $enlaceBienvenida = $bannerBienvenida?->enlace;
+        if (! $enlaceBienvenida || (! filter_var($enlaceBienvenida, FILTER_VALIDATE_URL) && ! \Illuminate\Support\Str::startsWith($enlaceBienvenida, '/'))) {
+            $enlaceBienvenida = route('web.productos');
+        }
+    @endphp
+
     {{-- Banner de bienvenida --}}
     <section class="welcome-hero" style="position:relative;overflow:hidden;height:460px;margin-bottom:1.75rem;border-radius:16px;">
-        <img src="{{ asset('assets/img/banner-bienvenida.jpg') }}" alt="Bienvenido a Tectron Galy"
+        <img src="{{ $bannerBienvenida?->image_url ?? asset('assets/img/banner-bienvenida.jpg') }}"
+            alt="{{ $bannerBienvenida?->titulo ?: 'Bienvenido a Tectron Galy' }}"
             style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.92);">
-        <div style="position:absolute;inset:0;background:linear-gradient(100deg,rgba(15,23,42,.92) 0%,rgba(15,23,42,.7) 45%,rgba(15,23,42,.25) 100%);"></div>
+        <div style="position:absolute;inset:0;background:linear-gradient(100deg,rgba(15,23,42,.96) 0%,rgba(15,23,42,.85) 45%,rgba(15,23,42,.45) 100%);"></div>
         <div class="container h-100" style="position:relative;z-index:2;">
             <div class="row h-100 align-items-center">
                 <div class="col-lg-6 text-white py-4">
                     <span class="badge bg-success mb-3 px-3 py-2" style="font-size:.8rem;letter-spacing:2px;font-weight:600;">
                         <i class="bi bi-lightning-charge-fill me-1"></i>BIENVENIDO
                     </span>
-                    <h1 class="fw-bold mb-2" style="font-size:clamp(2.2rem,5vw,3.5rem);text-shadow:0 4px 12px rgba(0,0,0,.6);line-height:1.1;">
-                        Tectron Galy
+                    <h1 class="fw-bold mb-2" style="color:#fff;font-size:clamp(2rem,4.4vw,3.2rem);text-shadow:0 4px 12px rgba(0,0,0,.65);line-height:1.1;max-width:520px;">
+                        {{ $bannerBienvenida?->titulo ?: 'Tectron Galy' }}
                     </h1>
                     <p class="mb-3" style="font-size:1.15rem;text-shadow:0 2px 6px rgba(0,0,0,.5);max-width:480px;">
-                        Tu tienda de tecnología y accesorios. Envío a todo el Perú, pago 100% seguro.
+                        {{ $bannerBienvenida?->subtitulo ?: 'Tu tienda de tecnología y accesorios. Envío a todo el Perú, pago 100% seguro.' }}
                     </p>
                     <div class="d-flex gap-2 flex-wrap mb-3">
-                        <a href="{{ route('web.productos') }}" class="btn btn-success btn-lg fw-bold px-4">
-                            <i class="bi bi-bag me-2"></i>Comprar ahora
+                        <a href="{{ $enlaceBienvenida }}" class="btn btn-success btn-lg fw-bold px-4">
+                            <i class="bi bi-bag me-2"></i>{{ $bannerBienvenida?->boton_texto ?: 'Comprar ahora' }}
                         </a>
                         <a href="{{ route('web.ofertas') }}" class="btn btn-outline-light btn-lg px-4">
                             Ver ofertas
@@ -211,11 +230,11 @@
     </div>
 
     <div class="g-home-hero">
-    @if ($banners->isNotEmpty())
+    @if ($bannersCarrusel->isNotEmpty())
         <div id="heroCarousel" class="carousel slide mb-4" style="--home-slider-height: {{ max(300, min(900, (int) ($ajuste->home_slider_altura ?? 520))) }}px;" data-bs-ride="carousel" data-bs-interval="{{ $ajuste->home_slider_velocidad ?? 5000 }}">
-            @if ($banners->count() > 1)
+            @if ($bannersCarrusel->count() > 1)
                 <div class="carousel-indicators">
-                    @foreach ($banners as $index => $banner)
+                    @foreach ($bannersCarrusel as $index => $banner)
                         <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="{{ $index }}"
                             class="{{ $index === 0 ? 'active' : '' }}"
                             aria-label="Banner {{ $index + 1 }}"></button>
@@ -223,7 +242,7 @@
                 </div>
             @endif
             <div class="carousel-inner">
-                @foreach ($banners as $index => $banner)
+                @foreach ($bannersCarrusel as $index => $banner)
                     @php
                         $bannerLink = $banner->enlace;
                         if (!$bannerLink || (!filter_var($bannerLink, FILTER_VALIDATE_URL) && !\Illuminate\Support\Str::startsWith($bannerLink, '/'))) {
@@ -253,7 +272,7 @@
                     </div>
                 @endforeach
             </div>
-            @if ($banners->count() > 1)
+            @if ($bannersCarrusel->count() > 1)
                 <button class="carousel-control-prev" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev" aria-label="Banner anterior">
                     <span class="carousel-control-prev-icon" aria-hidden="true"></span>
                 </button>

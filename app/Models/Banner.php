@@ -18,12 +18,14 @@ class Banner extends Model
         'enlace',
         'color_fondo',
         'activo',
+        'portada',
         'orden',
         'fecha_publicacion',
     ];
 
     protected $casts = [
         'activo' => 'boolean',
+        'portada' => 'boolean',
         'orden' => 'integer',
         'fecha_publicacion' => 'datetime',
     ];

@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @section('content')
-    <h1>Listado de categorÃ­as</h1>
+    <h1>Listado de categorías</h1>
     <hr>
 
     <div class="row">
@@ -10,11 +10,11 @@
 
                 <div class="card-header">
                     <h4>
-                        CategorÃ­as registradas
+                        Categorías registradas
 
                         <a href="{{ url('/admin/categorias/create') }}" style="float: right;" class="btn btn-primary">
                             <i class="bi bi-plus-circle"></i>
-                            Crear nueva categorÃ­a
+                            Crear nueva categoría
                         </a>
                     </h4>
                 </div>
@@ -53,10 +53,10 @@
                             <tr>
                                 <th>Nro</th>
                                 <th>Icono</th>
-                                <th>Nombre de la categorÃ­a</th>
+                                <th>Nombre de la categoría</th>
                                 <th>Slug</th>
                                 <th>Productos</th>
-                                <th>DescripciÃ³n</th>
+                                <th>Descripción</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -127,7 +127,7 @@
                                                 event.preventDefault();
 
                                                 Swal.fire({
-                                                    title: 'Â¿Desea eliminar este registro?',
+                                                    title: '¿Desea eliminar este registro?',
                                                     text: '',
                                                     icon: 'question',
                                                     showDenyButton: true,

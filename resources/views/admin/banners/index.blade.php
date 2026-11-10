@@ -68,7 +68,12 @@
                                                 <span class="text-muted">Sin imagen</span>
                                             @endif
                                         </td>
-                                        <td class="fw-bold">{{ $banner->titulo }}</td>
+                                        <td class="fw-bold">
+                                            {{ $banner->titulo }}
+                                            @if ($banner->portada)
+                                                <span class="badge bg-primary ms-1"><i class="bi bi-house-door-fill"></i> Portada</span>
+                                            @endif
+                                        </td>
                                         <td>
                                             @if($banner->enlace)
                                                 <a href="{{ $banner->enlace }}" target="_blank" class="text-truncate d-inline-block" style="max-width: 200px;">

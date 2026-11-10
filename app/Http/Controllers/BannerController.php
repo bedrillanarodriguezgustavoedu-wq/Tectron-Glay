@@ -47,6 +47,7 @@ class BannerController extends Controller
             'enlace' => 'nullable|string|max:500',
             'color_fondo' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'activo' => 'nullable|boolean',
+            'portada' => 'nullable|boolean',
             'orden' => 'required|integer|min:0',
             'fecha_publicacion' => 'nullable|date'
         ]);
@@ -58,6 +59,7 @@ class BannerController extends Controller
         $banner->enlace = $request->enlace;
         $banner->color_fondo = $request->color_fondo;
         $banner->activo = $request->has('activo') ? (bool)$request->activo : true;
+        $banner->portada = $request->boolean('portada');
         $banner->orden = $request->orden;
         $banner->fecha_publicacion = $request->fecha_publicacion;
 
@@ -66,6 +68,10 @@ class BannerController extends Controller
         }
 
         $banner->save();
+
+        if ($banner->portada) {
+            Banner::whereKeyNot($banner->getKey())->where('portada', true)->update(['portada' => false]);
+        }
 
         return redirect()->route('admin.banners.index')
             ->with('mensaje', 'Banner creado exitosamente')
@@ -103,6 +109,7 @@ class BannerController extends Controller
             'enlace' => 'nullable|string|max:500',
             'color_fondo' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'activo' => 'nullable|boolean',
+            'portada' => 'nullable|boolean',
             'orden' => 'required|integer|min:0',
             'fecha_publicacion' => 'nullable|date'
         ]);
@@ -114,6 +121,7 @@ class BannerController extends Controller
         $banner->enlace = $request->enlace;
         $banner->color_fondo = $request->color_fondo;
         $banner->activo = $request->has('activo') ? (bool)$request->activo : false;
+        $banner->portada = $request->boolean('portada');
         $banner->orden = $request->orden;
         $banner->fecha_publicacion = $request->fecha_publicacion;
 
@@ -122,6 +130,10 @@ class BannerController extends Controller
         }
 
         $banner->save();
+
+        if ($banner->portada) {
+            Banner::whereKeyNot($banner->getKey())->where('portada', true)->update(['portada' => false]);
+        }
 
         return redirect()->route('admin.banners.index')
             ->with('mensaje', 'Banner actualizado exitosamente')

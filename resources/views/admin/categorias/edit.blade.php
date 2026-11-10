@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('content') <h1>ModificaciÃ³n de la categorÃ­a: {{ $categoria->nombre }}</h1> <hr>
+@section('content') <h1>Modificación de la categoría: {{ $categoria->nombre }}</h1> <hr>
 
 <div class="row">
     <div class="col-md-8">
@@ -31,7 +31,7 @@
                                         id="nombre"
                                         class="form-control"
                                         value="{{ old('nombre', $categoria->nombre) }}"
-                                        placeholder="Nombre de la categorÃ­a"
+                                        placeholder="Nombre de la categoría"
                                         required>
                                 </div>
 
@@ -76,7 +76,7 @@
                     <div class="row mt-3">
                         <div class="col-md-12">
                             <div class="form-group">
-                                <label for="descripcion">DescripciÃ³n</label>
+                                <label for="descripcion">Descripción</label>
 
                                 <div class="input-group">
                                     <span class="input-group-text">
@@ -87,7 +87,7 @@
                                         id="descripcion"
                                         class="form-control"
                                         rows="4"
-                                        placeholder="DescripciÃ³n de la categorÃ­a">{{ old('descripcion', $categoria->descripcion) }}</textarea>
+                                        placeholder="Descripción de la categoría">{{ old('descripcion', $categoria->descripcion) }}</textarea>
                                 </div>
 
                                 @error('descripcion')
@@ -156,12 +156,12 @@
         let nombre = this.value;
 
         let slug = nombre.toLowerCase()
-            .replace(/[Ã¡Ã Ã¤Ã¢]/g, 'a')
-            .replace(/[Ã©Ã¨Ã«Ãª]/g, 'e')
-            .replace(/[Ã­Ã¬Ã¯Ã®]/g, 'i')
-            .replace(/[Ã³Ã²Ã¶Ã´]/g, 'o')
-            .replace(/[ÃºÃ¹Ã¼Ã»]/g, 'u')
-            .replace(/[Ã±]/g, 'n')
+            .replace(/[áàäâ]/g, 'a')
+            .replace(/[éèëê]/g, 'e')
+            .replace(/[íìïî]/g, 'i')
+            .replace(/[óòöô]/g, 'o')
+            .replace(/[úùüû]/g, 'u')
+            .replace(/[ñ]/g, 'n')
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-+|-+$/g, '');
 

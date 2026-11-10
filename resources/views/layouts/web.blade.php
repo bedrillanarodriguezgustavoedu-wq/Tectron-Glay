@@ -1,4 +1,4 @@
-﻿@php
+@php
     $ajuste = \App\Models\Ajuste::first() ?? new \App\Models\Ajuste();
 @endphp
 <!DOCTYPE html>
@@ -7,7 +7,7 @@
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <title>@hasSection('title')@yield('title') â€” {{ $ajuste->nombre }}@else{{ $ajuste->nombre }} Â· {{ $ajuste->descripcion }}@endif</title>
+    <title>@hasSection('title')@yield('title') — {{ $ajuste->nombre }}@else{{ $ajuste->nombre }} · {{ $ajuste->descripcion }}@endif</title>
     <meta name="description" content="@yield('meta_descripcion', $ajuste->descripcion)">
     <meta name="keywords" content="">
     <meta name="robots" content="@yield('meta_robots', 'index, follow')">
@@ -79,7 +79,7 @@
             transition: all 0.3s ease;
         }
 
-        /* PersonalizaciÃ³n del MenÃº de NavegaciÃ³n */
+        /* Personalización del Menú de Navegación */
         .header .header-nav {
             background-color: {{ $ajuste->menu_bg_color ?? '#ffffff' }} !important;
             @if(isset($ajuste->menu_opacity))
@@ -470,7 +470,7 @@
         <div class="g-topbar d-none d-sm-block">
             <div class="container-xl">
                 <ul class="g-topbar-list">
-                    <li class="g-topbar-item"><i class="bi bi-truck"></i> EnvÃ­o a todo el PerÃº</li>
+                    <li class="g-topbar-item"><i class="bi bi-truck"></i> Envío a todo el Perú</li>
                     <li class="g-topbar-item"><i class="bi bi-shield-check"></i> Compra 100% segura</li>
                     <li class="g-topbar-item"><i class="bi bi-arrow-repeat"></i> Cambios sin complicaciones</li>
                 </ul>
@@ -489,7 +489,7 @@
                     <li class="g-topbar-item"><a href="{{ route('web.contacto') }}"><i class="bi bi-headset"></i> Ayuda</a></li>
                     <li class="g-topbar-item"><a href="{{ url('/dashboard') }}"><i class="bi bi-box-seam"></i> Mis pedidos</a></li>
                     <li class="g-topbar-item">
-                        <span class="g-topbar-highlight"><i class="bi bi-lightning-charge-fill"></i> Ofertas todos los dÃ­as</span>
+                        <span class="g-topbar-highlight"><i class="bi bi-lightning-charge-fill"></i> Ofertas todos los días</span>
                     </li>
                 </ul>
             </div>
@@ -547,7 +547,7 @@
                                     <li class="px-3">
                                         <form method="POST" action="{{ route('logout') }}">
                                             @csrf
-                                            <button type="submit" class="btn btn-sm btn-outline-danger w-100 rounded-pill"><i class="bi bi-box-arrow-right me-1"></i> Cerrar SesiÃ³n</button>
+                                            <button type="submit" class="btn btn-sm btn-outline-danger w-100 rounded-pill"><i class="bi bi-box-arrow-right me-1"></i> Cerrar Sesión</button>
                                         </form>
                                     </li>
                                 </ul>
@@ -557,7 +557,7 @@
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end shadow border-0 glass-dropdown p-3 mt-2" style="width: 220px;">
                                     <li class="text-center mb-2 small text-muted">Bienvenido</li>
-                                    <li><a href="{{ route('web.login') }}" class="btn btn-primary btn-sm w-100 mb-2 rounded-pill">Iniciar SesiÃ³n</a></li>
+                                    <li><a href="{{ route('web.login') }}" class="btn btn-primary btn-sm w-100 mb-2 rounded-pill">Iniciar Sesión</a></li>
                                     <li><a href="{{ route('web.registro') }}" class="btn btn-outline-primary btn-sm w-100 rounded-pill">Registrarse</a></li>
                                 </ul>
                             @endif
@@ -578,7 +578,7 @@
                             <div class="dropdown-menu dropdown-menu-end shadow-lg border-0 glass-dropdown py-3 mt-2" style="width: 320px;">
                                 <div class="px-3 pb-2 border-bottom d-flex justify-content-between align-items-center">
                                     <h6 class="mb-0 fw-bold">Mi Carrito</h6>
-                                    <span class="badge bg-primary rounded-pill">{{ $carrito_cantidad ?? 0 }} Ã­tems</span>
+                                    <span class="badge bg-primary rounded-pill">{{ $carrito_cantidad ?? 0 }} ítems</span>
                                 </div>
                                 <div class="mini-cart-items px-3 py-2 overflow-y-auto" style="max-height: 250px;">
                                     @forelse($carrito_items ?? [] as $item)
@@ -599,7 +599,7 @@
                                     @empty
                                         <div class="text-center py-4 text-muted">
                                             <i class="bi bi-cart-x display-6 mb-2 d-block text-secondary"></i>
-                                            <span>Tu carrito estÃ¡ vacÃ­o</span>
+                                            <span>Tu carrito está vacío</span>
                                         </div>
                                     @endforelse
                                 </div>
@@ -639,7 +639,7 @@
                         
                         <!-- Categories MegaMenu -->
                         <li class="dropdown mega-dropdown">
-                            <a href="#"><span>CategorÃ­as</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+                            <a href="#"><span>Categorías</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
                             
                             <!-- Mobile Categories list -->
                             <ul class="d-xl-none">
@@ -648,7 +648,7 @@
                                 @if(($productos_ofertas ?? collect())->isNotEmpty())
                                     <li><a href="{{ route('web.ofertas') }}"><i class="bi bi-percent text-success me-2"></i> Ofertas</a></li>
                                 @endif
-                                <li class="dropdown"><a href="#"><span>Ver Por CategorÃ­a</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
+                                <li class="dropdown"><a href="#"><span>Ver Por Categoría</span> <i class="bi bi-chevron-down toggle-dropdown"></i></a>
                                     <ul>
                                         @foreach($menu_categorias ?? [] as $cat)
                                             <li><a href="{{ route('web.categoria', $cat->slug) }}"><i class="{{ $cat->icono ?? 'bi-tag' }} me-2"></i> {{ $cat->nombre }}</a></li>
@@ -812,7 +812,7 @@
                                                         @empty
                                                             <div class="col-12 text-center py-5 text-muted">
                                                                 <i class="bi bi-info-circle display-5 mb-2 d-block"></i>
-                                                                <span>No hay productos en esta categorÃ­a</span>
+                                                                <span>No hay productos en esta categoría</span>
                                                             </div>
                                                         @endforelse
                                                     </div>
@@ -845,7 +845,7 @@
                             <!-- Desktop brands grid -->
                             <div class="mega-menu-container d-none d-xl-block dropdown-menu p-4">
                                 <div class="container">
-                                    <h5 class="fw-bold mb-3"><i class="bi bi-gpu-card text-primary me-2"></i>Nuestras Marcas de TecnologÃ­a</h5>
+                                    <h5 class="fw-bold mb-3"><i class="bi bi-gpu-card text-primary me-2"></i>Nuestras Marcas de Tecnología</h5>
                                     <div class="row row-cols-4 g-3">
                                         @foreach($menu_marcas ?? [] as $marca)
                                             <div class="col">
@@ -863,7 +863,7 @@
 
                         <li><a href="{{ route('web.asesores') }}" class="{{ Route::is('web.asesores') ? 'active' : '' }}"><i class="bi bi-people me-1" aria-hidden="true"></i>Asesores</a></li>
                         <li><a href="{{ route('web.nosotros') }}" class="{{ Route::is('web.nosotros') ? 'active' : '' }}">Nosotros</a></li>
-                        <li><a href="{{ route('web.contacto') }}#servicio-tecnico"><i class="bi bi-tools me-1" aria-hidden="true"></i>Servicio tÃ©cnico</a></li>
+                        <li><a href="{{ route('web.contacto') }}#servicio-tecnico"><i class="bi bi-tools me-1" aria-hidden="true"></i>Servicio técnico</a></li>
                         <li><a href="{{ route('web.contacto') }}" class="{{ Route::is('web.contacto') ? 'active' : '' }}">Contacto</a></li>
                     </ul>
                 </nav>
@@ -910,7 +910,7 @@
                             @endphp
                             @if(collect([$facebookLink, $instagramLink, $tiktokLink, $twitterLink, $youtubeLink, $linkedinLink, $whatsappLink])->contains(fn ($link) => filled($link) && $link !== '#'))
                                 <div class="social-links mt-4">
-                                    <h5 class="text-white">SÃ­guenos en Redes</h5>
+                                    <h5 class="text-white">Síguenos en Redes</h5>
                                     <div class="social-icons d-flex gap-2">
                                         @if(filled($facebookLink) && $facebookLink !== '#')
                                             <a href="{{ $facebookLink }}" target="_blank" rel="noopener noreferrer" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
@@ -941,12 +941,12 @@
 
                     <div class="col-lg-2 col-md-6 col-sm-6">
                         <div class="footer-widget">
-                            <h4>Enlaces RÃ¡pidos</h4>
+                            <h4>Enlaces Rápidos</h4>
                             <ul class="footer-links">
                                 @forelse($footer_enlaces ?? [] as $enlace)
                                     <li><a href="{{ url($enlace->url) }}">{{ $enlace->titulo }}</a></li>
                                 @empty
-                                    <li><a href="{{ route('web.productos') }}">Ver CatÃ¡logo</a></li>
+                                    <li><a href="{{ route('web.productos') }}">Ver Catálogo</a></li>
                                     <li><a href="{{ route('web.ofertas') }}">Ofertas Especiales</a></li>
                                     <li><a href="{{ route('web.nosotros') }}">Sobre Nosotros</a></li>
                                     <li><a href="{{ route('web.contacto') }}">Contacto</a></li>
@@ -957,11 +957,11 @@
 
                     <div class="col-lg-2 col-md-6 col-sm-6">
                         <div class="footer-widget">
-                            <h4>InformaciÃ³n Legal</h4>
+                            <h4>Información Legal</h4>
                             <ul class="footer-links">
-                                <li><a href="{{ url('/terminos-y-condiciones') }}">TÃ©rminos y Condiciones</a></li>
-                                <li><a href="{{ url('/politica-de-privacidad') }}">PolÃ­tica de Privacidad</a></li>
-                                <li><a href="{{ url('/politica-de-cookies') }}">PolÃ­tica de Cookies</a></li>
+                                <li><a href="{{ url('/terminos-y-condiciones') }}">Términos y Condiciones</a></li>
+                                <li><a href="{{ url('/politica-de-privacidad') }}">Política de Privacidad</a></li>
+                                <li><a href="{{ url('/politica-de-cookies') }}">Política de Cookies</a></li>
                                 <li><a href="{{ url('/cambios-y-devoluciones') }}">Cambios y Devoluciones</a></li>
                             </ul>
                         </div>
@@ -970,7 +970,7 @@
                         <div class="col-lg-4 col-md-6">
                             <div class="footer-widget">
                                 @if($contact_info && ($contact_info->direccion || $contact_info->telefono_principal || $contact_info->email || $contact_info->horario_atencion))
-                                    <h4>InformaciÃ³n de Contacto</h4>
+                                    <h4>Información de Contacto</h4>
                                     <div class="footer-contact">
                                     @if($contact_info->direccion)
                                         <div class="contact-item d-flex gap-2 align-items-start mb-2">
@@ -1027,10 +1027,10 @@
                 <div class="row gy-3 align-items-center">
                     <div class="col-lg-6 col-md-12">
                         <div class="copyright">
-                            <p>{{ $footer_settings->copyright_texto ?? 'Â© Copyright GALY. All Rights Reserved.' }}</p>
+                            <p>{{ $footer_settings->copyright_texto ?? '© Copyright GALY. All Rights Reserved.' }}</p>
                         </div>
                         <div class="credits mt-1">
-                            DiseÃ±ado por <a href="https://bootstrapmade.com/">BootstrapMade</a>
+                            Diseñado por <a href="https://bootstrapmade.com/">BootstrapMade</a>
                         </div>
                     </div>
 
@@ -1044,7 +1044,7 @@
                             </div>
 
                             <div class="legal-links">
-                                <a href="{{ url('/terminos-y-condiciones') }}">TÃ©rminos</a>
+                                <a href="{{ url('/terminos-y-condiciones') }}">Términos</a>
                                 <a href="{{ url('/politica-de-privacidad') }}">Privacidad</a>
                                 <a href="{{ url('/pago-seguro') }}">Pago seguro</a>
                                 <a href="{{ url('/politica-de-cookies') }}">Cookies</a>
@@ -1057,8 +1057,8 @@
         </div>
     </footer>
 
-    <!-- NavegaciÃ³n inferior (mÃ³vil) -->
-    <nav class="g-dock" aria-label="Accesos rÃ¡pidos">
+    <!-- Navegación inferior (móvil) -->
+    <nav class="g-dock" aria-label="Accesos rápidos">
         <ul class="g-dock-list">
             <li>
                 <a href="{{ route('web.index') }}" class="g-dock-link">
@@ -1067,7 +1067,7 @@
             </li>
             <li>
                 <a href="{{ route('web.productos') }}" class="g-dock-link">
-                    <i class="bi bi-grid" aria-hidden="true"></i><span>CategorÃ­as</span>
+                    <i class="bi bi-grid" aria-hidden="true"></i><span>Categorías</span>
                 </a>
             </li>
             <li>
@@ -1181,7 +1181,7 @@
                             window.location.href = '{{ route("web.login") }}';
                             return;
                         }
-                        throw new Error('El servidor devolviÃ³ una respuesta no vÃ¡lida (HTML).');
+                        throw new Error('El servidor devolvió una respuesta no válida (HTML).');
                     }
                 })
                 .then(data => {
@@ -1222,7 +1222,7 @@
                     console.error(err);
                     Toast.fire({
                         icon: 'error',
-                        title: err.message || 'OcurriÃ³ un error inesperado.'
+                        title: err.message || 'Ocurrió un error inesperado.'
                     });
                 });
             }
@@ -1263,7 +1263,7 @@
                             window.location.href = '{{ route("web.login") }}';
                             return;
                         }
-                        throw new Error('El servidor devolviÃ³ una respuesta no vÃ¡lida (HTML).');
+                        throw new Error('El servidor devolvió una respuesta no válida (HTML).');
                     }
                 })
                 .then(data => {
@@ -1313,7 +1313,7 @@
                     console.error(err);
                     Toast.fire({
                         icon: 'error',
-                        title: err.message || 'OcurriÃ³ un error inesperado.'
+                        title: err.message || 'Ocurrió un error inesperado.'
                     });
                 });
             }
