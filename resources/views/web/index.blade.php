@@ -2,6 +2,30 @@
 
 @section('content')
     
+    {{-- Banner de bienvenida --}}
+    <section class="welcome-hero" style="position:relative;overflow:hidden;height:420px;margin-bottom:1.5rem;">
+        <img src="{{ asset('assets/img/banner-bienvenida.jpg') }}" alt="Bienvenido a Tectron Galy"
+            style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">
+        <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(15,23,42,.85) 0%,rgba(15,23,42,.45) 60%,rgba(15,23,42,.15) 100%);"></div>
+        <div class="container h-100" style="position:relative;z-index:2;">
+            <div class="row h-100 align-items-center">
+                <div class="col-lg-6 text-white">
+                    <span class="badge bg-success mb-3" style="font-size:.85rem;letter-spacing:1px;">BIENVENIDO</span>
+                    <h1 class="display-4 fw-bold mb-2" style="text-shadow:0 2px 8px rgba(0,0,0,.5);">Tectron Galy</h1>
+                    <p class="lead mb-3" style="text-shadow:0 1px 4px rgba(0,0,0,.5);">Tu tienda de tecnología y accesorios. Envío a todo el Perú, pago 100% seguro.</p>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <a href="{{ route('web.productos') }}" class="btn btn-success btn-lg">
+                            <i class="bi bi-bag me-2"></i>Comprar ahora
+                        </a>
+                        <a href="{{ route('web.ofertas') }}" class="btn btn-outline-light btn-lg">
+                            Ver ofertas
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <style>
         .hover-zoom img {
             transition: transform .4s ease;

@@ -238,6 +238,14 @@
                         </tr>
                     </table>
                 </div>
+                <!-- ACCIONES -->
+                <div style="margin-top:30px;text-align:center;">
+                    <a href="{{ url('/pedido/' . $orden->id . '/confirmacion') }}"
+                        style="display:inline-block;padding:12px 24px;background:#111827;color:#ffffff;
+                               text-decoration:none;border-radius:8px;font-weight:600;margin:0 6px 8px;">
+                        Ver mi pedido
+                    </a>
+                </div>
                 <!-- MENSAJE FINAL -->
                 <div
                     style="margin-top:30px;

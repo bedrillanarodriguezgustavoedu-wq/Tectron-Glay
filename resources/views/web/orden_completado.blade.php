@@ -482,6 +482,19 @@
                     </div>
                 </div>
             @endif
+            @if ($pagoPendiente && ! $revisionMercadoPago)
+                <div class="row justify-content-center mb-4">
+                    <div class="col-lg-10 text-center">
+                        <form action="{{ route('web.pedidos.cancelar', $orden->id) }}" method="POST" class="d-inline"
+                            onsubmit="return confirm('¿Seguro que quieres cancelar el pedido #{{ $orden->id }}? Se liberará el stock.')">
+                            @csrf
+                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Cancelar pedido
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            @endif
             @if ($brickTarjeta)
                 {{-- El formulario de tarjeta lo sirve Mercado Pago dentro de un iframe
                      propio: aquí solo se le pasa el monto y se recibe el token ya

@@ -45,3 +45,4 @@ Thumbs.db
 # Lanzador del Programador de tareas: acceso directo con «Ejecutar: Minimizada» que apunta a programador.bat.
 # Es binario, con rutas absolutas y solo existe en esta máquina. Se recrea con la nota de programador.bat.
 /programador-min.lnk
+/programador-hidden.vbs

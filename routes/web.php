@@ -614,6 +614,7 @@ Route::get('/pedido/{id}/comprobante-pago', [OrdenController::class, 'verMiCompr
     ->middleware('auth');
 Route::post('/pedido/pago-manual', [OrdenController::class, 'crearPedidoPagoManual'])->name('web.pedidos.pago_manual')->middleware(['auth', 'throttle:10,1']);
 Route::post('/pedido/{id}/comprobante-pago', [OrdenController::class, 'enviarComprobantePagoManual'])->name('web.pedidos.comprobante')->middleware(['auth', 'throttle:10,1']);
+Route::post('/pedido/{id}/cancelar', [OrdenController::class, 'cancelarPedido'])->name('web.pedidos.cancelar')->middleware(['auth', 'throttle:10,1']);
 
 // Pago con tarjeta (Mercado Pago Checkout Pro): la pasarela redirige al cliente de
 // vuelta a /retorno y notifica en /webhooks/mercadopago, que va sin CSRF.

@@ -813,6 +813,57 @@ class OrdenController extends Controller
      *
      * @return array<string, mixed>|string|null
      */
+    /**
+     * Cancela un pedido que sigue pendiente de pago: libera las reservas
+     * asociadas (devuelve el stock) y marca el pedido como cancelado.
+     * Solo el dueño del pedido y solo si no se pagó.
+     */
+    public function cancelarPedido(Request $request, $id, ReservaProductoService $reservations)
+    {
+        $usuarioId = auth()->user()?->resolveGalyUserId();
+        abort_if($usuarioId === null, 403);
+
+        $orden = Orden::where('usuario_id', $usuarioId)->findOrFail($id);
+
+        if (in_array($orden->estado_pago, ['Pagado', 'COMPLETED', 'approved'], true)) {
+            return redirect()->route('web.pedidos.confirmacion', $orden->id)
+                ->with('mensaje', 'Este pedido ya está pagado y no se puede cancelar.')
+                ->with('icono', 'warning');
+        }
+
+        if (in_array($orden->estado, ['CANCELADO', 'Cancelado'], true)) {
+            return redirect()->route('web.pedidos.confirmacion', $orden->id)
+                ->with('mensaje', 'Este pedido ya estaba cancelado.')
+                ->with('icono', 'info');
+        }
+
+        DB::connection('galy')->transaction(function () use ($orden, $reservations): void {
+            // Libera las reservas convertidas de este pedido: devuelve el stock.
+            $convertidas = DB::connection('galy')->table('reservas_productos')
+                ->where('pedido_id', $orden->id)
+                ->where('estado', 'convertida')
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($convertidas as $reserva) {
+                DB::connection('galy')->table('productos')
+                    ->where('id', $reserva->producto_id)
+                    ->increment('stock', $reserva->cantidad);
+                DB::connection('galy')->table('reservas_productos')
+                    ->where('id', $reserva->id)
+                    ->update(['estado' => 'cancelada', 'updated_at' => now()]);
+            }
+
+            $orden->estado = 'CANCELADO';
+            $orden->estado_pago = 'Cancelado';
+            $orden->save();
+        });
+
+        return redirect()->route('web.carrito.index')
+            ->with('mensaje', 'Pedido #' . $orden->id . ' cancelado. El stock se liberó.')
+            ->with('icono', 'success');
+    }
+
     private function direccionFacturacion(Orden $orden): array|string|null
     {
         $direccion = $orden->direccion()->first();
