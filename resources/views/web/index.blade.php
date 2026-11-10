@@ -3,23 +3,34 @@
 @section('content')
     
     {{-- Banner de bienvenida --}}
-    <section class="welcome-hero" style="position:relative;overflow:hidden;height:420px;margin-bottom:1.5rem;">
+    <section class="welcome-hero" style="position:relative;overflow:hidden;height:460px;margin-bottom:1.75rem;border-radius:16px;">
         <img src="{{ asset('assets/img/banner-bienvenida.jpg') }}" alt="Bienvenido a Tectron Galy"
-            style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">
-        <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(15,23,42,.85) 0%,rgba(15,23,42,.45) 60%,rgba(15,23,42,.15) 100%);"></div>
+            style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.92);">
+        <div style="position:absolute;inset:0;background:linear-gradient(100deg,rgba(15,23,42,.92) 0%,rgba(15,23,42,.7) 45%,rgba(15,23,42,.25) 100%);"></div>
         <div class="container h-100" style="position:relative;z-index:2;">
             <div class="row h-100 align-items-center">
-                <div class="col-lg-6 text-white">
-                    <span class="badge bg-success mb-3" style="font-size:.85rem;letter-spacing:1px;">BIENVENIDO</span>
-                    <h1 class="display-4 fw-bold mb-2" style="text-shadow:0 2px 8px rgba(0,0,0,.5);">Tectron Galy</h1>
-                    <p class="lead mb-3" style="text-shadow:0 1px 4px rgba(0,0,0,.5);">Tu tienda de tecnología y accesorios. Envío a todo el Perú, pago 100% seguro.</p>
-                    <div class="d-flex gap-2 flex-wrap">
-                        <a href="{{ route('web.productos') }}" class="btn btn-success btn-lg">
+                <div class="col-lg-6 text-white py-4">
+                    <span class="badge bg-success mb-3 px-3 py-2" style="font-size:.8rem;letter-spacing:2px;font-weight:600;">
+                        <i class="bi bi-lightning-charge-fill me-1"></i>BIENVENIDO
+                    </span>
+                    <h1 class="fw-bold mb-2" style="font-size:clamp(2.2rem,5vw,3.5rem);text-shadow:0 4px 12px rgba(0,0,0,.6);line-height:1.1;">
+                        Tectron Galy
+                    </h1>
+                    <p class="mb-3" style="font-size:1.15rem;text-shadow:0 2px 6px rgba(0,0,0,.5);max-width:480px;">
+                        Tu tienda de tecnología y accesorios. Envío a todo el Perú, pago 100% seguro.
+                    </p>
+                    <div class="d-flex gap-2 flex-wrap mb-3">
+                        <a href="{{ route('web.productos') }}" class="btn btn-success btn-lg fw-bold px-4">
                             <i class="bi bi-bag me-2"></i>Comprar ahora
                         </a>
-                        <a href="{{ route('web.ofertas') }}" class="btn btn-outline-light btn-lg">
+                        <a href="{{ route('web.ofertas') }}" class="btn btn-outline-light btn-lg px-4">
                             Ver ofertas
                         </a>
+                    </div>
+                    <div class="d-flex gap-3 flex-wrap small" style="opacity:.9;">
+                        <span><i class="bi bi-truck me-1"></i>Envío a todo el Perú</span>
+                        <span><i class="bi bi-shield-check me-1"></i>Pago seguro</span>
+                        <span><i class="bi bi-credit-card me-1"></i>Yape, Plin y tarjetas</span>
                     </div>
                 </div>
             </div>
