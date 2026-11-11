@@ -171,7 +171,7 @@
                         }
                     @endphp
                     <div class="carousel-item {{ $index === 0 ? 'active' : '' }}">
-                        <div class="shared-banner-link text-decoration-none">
+                        <div class="shared-banner-link text-decoration-none {{ $banner->portada ? 'is-portada' : '' }}">
                             <img src="{{ $banner->image_url }}" class="shared-banner-image" alt="{{ $banner->titulo }}">
                             <a href="{{ $bannerLink }}" class="shared-banner-hit" aria-label="{{ $banner->titulo ?: 'Ver ofertas' }}"></a>
                             <div class="shared-banner-overlay">
@@ -187,6 +187,13 @@
                                         <a href="{{ $bannerLink }}" class="btn btn-light fw-bold">{{ $banner->boton_texto ?: 'Comprar ahora' }} <i class="bi bi-arrow-right ms-1"></i></a>
                                         <a href="{{ route('web.ofertas') }}" class="btn btn-outline-light">Ver ofertas</a>
                                     </div>
+                                    @if ($banner->portada)
+                                        <div class="g-hero-trust">
+                                            <span><i class="bi bi-truck"></i> Envío a todo el Perú</span>
+                                            <span><i class="bi bi-shield-check"></i> Pago seguro</span>
+                                            <span><i class="bi bi-credit-card"></i> Yape, Plin y tarjetas</span>
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                         </div>
