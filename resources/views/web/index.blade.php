@@ -195,39 +195,7 @@
         }
     </style>
 
-    {{-- Tira de confianza --}}
-    <div class="container mb-4">
-        <div class="row g-3 text-center">
-            <div class="col-6 col-md-3">
-                <div class="p-3 rounded-3 bg-light h-100">
-                    <i class="bi bi-truck text-success fs-3 d-block mb-1"></i>
-                    <strong class="d-block">Envío a todo el Perú</strong>
-                    <small class="text-muted">Despacho rápido y seguimiento</small>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="p-3 rounded-3 bg-light h-100">
-                    <i class="bi bi-shield-check text-success fs-3 d-block mb-1"></i>
-                    <strong class="d-block">Pago 100% seguro</strong>
-                    <small class="text-muted">Mercado Pago, Yape, Plin</small>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="p-3 rounded-3 bg-light h-100">
-                    <i class="bi bi-arrow-repeat text-success fs-3 d-block mb-1"></i>
-                    <strong class="d-block">Cambios sin complicaciones</strong>
-                    <small class="text-muted">Garantía en tus compras</small>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="p-3 rounded-3 bg-light h-100">
-                    <i class="bi bi-headset text-success fs-3 d-block mb-1"></i>
-                    <strong class="d-block">Soporte técnico</strong>
-                    <small class="text-muted">Asesoría especializada</small>
-                </div>
-            </div>
-        </div>
-    </div>
+    {{-- La franja de confianza se muestra una sola vez, debajo del carrusel --}}
 
     <div class="g-home-hero">
     @if ($bannersCarrusel->isNotEmpty())
@@ -322,7 +290,7 @@
                 <span class="visually-hidden">Siguiente</span>
             </button>
         </div>
-    @else
+    @elseif (! $bannerBienvenida)
         <!-- Hero Section Fallback -->
         <section id="hero" class="hero section">
             <div class="hero-container">

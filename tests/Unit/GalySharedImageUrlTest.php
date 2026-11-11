@@ -134,6 +134,13 @@ class GalySharedImageUrlTest extends TestCase
         );
     }
 
+    public function test_banner_image_stored_under_public_assets_uses_the_store_url(): void
+    {
+        $banner = new Banner(['imagen' => 'assets/img/banner-bienvenida.jpg']);
+
+        $this->assertSame(asset('assets/img/banner-bienvenida.jpg'), $banner->image_url);
+    }
+
     public function test_product_image_url_uses_the_galy_api_not_the_admin_panel_url(): void
     {
         $imagesPath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'galy-images-'.uniqid('', true);

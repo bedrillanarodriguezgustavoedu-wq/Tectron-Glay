@@ -44,6 +44,10 @@ class Banner extends Model
             return Storage::disk('public')->url($this->imagen);
         }
 
+        if (str_starts_with($this->imagen, 'assets/')) {
+            return asset($this->imagen);
+        }
+
         if (($compartida = \App\Models\ProductoImagen::sharedAssetUrl($this->imagen)) !== null) {
             return $compartida;
         }
