@@ -53,6 +53,29 @@ return [
         'bricks' => env('MERCADOPAGO_BRICKS', false),
     ],
 
+    /*
+    | Izipay (Mi Cuenta Web / PayZen). El cobro lo hace el formulario embebido de
+    | Izipay con un `formToken`: la tienda nunca recibe el número ni el CVV.
+    | Las cuatro credenciales salen del Back Office Vendedor de Izipay.
+    */
+    'izipay' => [
+        'enabled' => env('IZIPAY_ENABLED', false),
+        // Código de comercio (usuario) y clave API del botón de pagos.
+        'shop_id' => env('IZIPAY_SHOP_ID'),
+        'password' => env('IZIPAY_PASSWORD'),
+        // Clave pública que usa el navegador para dibujar el formulario.
+        'public_key' => env('IZIPAY_PUBLIC_KEY'),
+        // Clave HMAC-SHA-256 con la que se valida `kr-answer`.
+        'hmac_key' => env('IZIPAY_HMAC_KEY'),
+        'environment' => env('IZIPAY_ENVIRONMENT', 'production'),
+        'checkout_ttl_minutes' => env('IZIPAY_CHECKOUT_TTL_MINUTES', 30),
+        // Se pueden sobrescribir para sandbox o para un proxy propio.
+        'api_url' => env('IZIPAY_API_URL'),
+        'script_url' => env('IZIPAY_SCRIPT_URL'),
+        // URL pública a la que Izipay devuelve al cliente. Si va vacía se usa APP_URL.
+        'url_base' => env('IZIPAY_URL_BASE'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

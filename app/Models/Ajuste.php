@@ -79,6 +79,7 @@ class Ajuste extends Model
 
         // Pago con tarjeta (Mercado Pago Checkout Pro)
         'web_mercadopago_activa',
+        'web_izipay_activa',
 
         // Configuración de Reseñas
         'review_requiere_aprobacion',

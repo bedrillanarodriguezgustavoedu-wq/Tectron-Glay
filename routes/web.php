@@ -15,6 +15,7 @@ use App\Http\Controllers\CuponController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartamentoController;
 use App\Http\Controllers\DireccionController;
+use App\Http\Controllers\IzipayController;
 use App\Http\Controllers\FooterController;
 use App\Http\Controllers\GalyAdminLinkController;
 use App\Http\Controllers\MarcaController;
@@ -635,6 +636,22 @@ Route::post('/pedido/{id}/pago-tarjeta-brick', [MercadoPagoController::class, 'p
 Route::post('/webhooks/mercadopago', [MercadoPagoController::class, 'webhook'])
     ->name('web.hook.mercadopago')
     ->middleware('throttle:300,1');
+
+// Pago con tarjeta a través de Izipay. El formulario lo sirve Izipay dentro de
+// nuestra página; el retorno y la IPN llegan sin CSRF y se validan por firma
+// HMAC (`kr-answer` + `kr-hash`). La tienda no recibe datos de la tarjeta.
+Route::get('/pago/izipay/{intento}', [IzipayController::class, 'formulario'])
+    ->name('web.pagos.izipay.form')
+    ->middleware(['auth', 'throttle:30,1']);
+Route::post('/pago/izipay/retorno', [IzipayController::class, 'retorno'])
+    ->name('web.pagos.izipay.retorno')
+    ->middleware('throttle:60,1');
+Route::post('/webhooks/izipay', [IzipayController::class, 'ipn'])
+    ->name('web.hook.izipay')
+    ->middleware('throttle:300,1');
+Route::post('/pedido/{id}/pagar-izipay', [IzipayController::class, 'reintentar'])
+    ->name('web.pedidos.izipay.reintentar')
+    ->middleware(['auth', 'throttle:6,1']);
 
 // ////////////////////////////////////////////////////RUTAS DE APARIENCIA Y FOOTER (ADMIN)////////////////////////////////////////////////////////////
 Route::get('/admin/apariencia', [AparienciaController::class, 'index'])->name('admin.apariencia.index')->middleware(['auth', 'can:Gestionar Apariencia']);

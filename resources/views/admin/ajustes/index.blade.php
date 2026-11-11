@@ -652,6 +652,39 @@
                                                     </span>
                                                 @endif
                                             </div>
+                                            @php
+                                                $izipay = app(\App\Services\IzipayService::class);
+                                            @endphp
+                                            <div class="border rounded-3 p-3 mt-3">
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" role="switch" id="web_izipay_activa" name="web_izipay_activa" value="1" @checked($ajuste?->web_izipay_activa)>
+                                                    <label class="form-check-label fw-semibold" for="web_izipay_activa">
+                                                        <i class="bi bi-credit-card text-primary me-1"></i>Ofrecer pago con tarjeta (Izipay)
+                                                    </label>
+                                                </div>
+                                                <p class="small text-muted mb-2 mt-2">
+                                                    El cliente escribe su tarjeta en el formulario seguro de Izipay, dentro de la tienda.
+                                                    La tienda no ve ni guarda el número ni el CVV, y el pedido se marca como pagado cuando
+                                                    Izipay confirma la operación.
+                                                </p>
+                                                @if ($izipay->habilitado())
+                                                    <span class="badge bg-success">Pasarela configurada</span>
+                                                    <span class="badge bg-{{ $izipay->esSandbox() ? 'info text-dark' : 'primary' }}">
+                                                        {{ $izipay->esSandbox() ? 'Sandbox (pruebas)' : 'Producción' }}
+                                                    </span>
+                                                    <span class="small text-success">
+                                                        Marca esta casilla para mostrar «Tarjeta Izipay» en el checkout.
+                                                        Comprueba las claves con <code>php artisan izipay:verificar</code>.
+                                                    </span>
+                                                @else
+                                                    <span class="badge bg-warning text-dark">Credenciales pendientes</span>
+                                                    <span class="small text-warning">
+                                                        Faltan las credenciales de Izipay: pon <code>IZIPAY_ENABLED=true</code>
+                                                        y las cuatro claves en el archivo .env (carpeta raíz del proyecto).
+                                                        Sin ellas esta opción no aparecerá en el checkout aunque la actives aquí.
+                                                    </span>
+                                                @endif
+                                            </div>
                                         @endif
                                     @endforeach
 

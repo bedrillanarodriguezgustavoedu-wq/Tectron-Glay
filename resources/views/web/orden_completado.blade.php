@@ -14,6 +14,11 @@
             ? $orden->intentosPago->first(fn ($intento) => $intento->estaVigente() && $intento->checkout_url)
             : null;
         $pagoConTransferencia = in_array($orden->metodo_pago, ['yape', 'plin', 'bcp'], true) && $pagoPendiente;
+        // Izipay cobra con su formulario embebido. Mientras no confirme, el
+        // pedido sigue pendiente y esta página ofrece reabrir el pago.
+        $pagoIzipayPendiente = $orden->metodo_pago === 'izipay' && $pagoPendiente;
+        $izipayDisponible = $pagoIzipayPendiente
+            && app(\App\Services\IzipayService::class)->sePuedeOfrecer();
         // El formulario de tarjeta embebido de Mercado Pago (Checkout Bricks). Existe
         // solo si el dueño pegó su Public Key y encendió la bandera; mientras esté
         // apagado esta página ofrece exactamente el mismo botón de hoy.
@@ -21,7 +26,7 @@
         $brickTarjeta = $orden->metodo_pago === 'tarjeta' && $pagoPendiente && ! $revisionMercadoPago
             && $servicioMercadoPago->brickListo();
         $llavePublicaTarjeta = $brickTarjeta ? $servicioMercadoPago->llavePublica() : null;
-        $pedidoPendiente = in_array($orden->metodo_pago, ['yape', 'plin', 'bcp', 'tarjeta'], true) && $pagoPendiente;
+        $pedidoPendiente = in_array($orden->metodo_pago, ['yape', 'plin', 'bcp', 'tarjeta', 'izipay'], true) && $pagoPendiente;
         [$metodoManual, $numeroManual, $titularManual, $qrManual, $cuentaBcp] = match ($orden->metodo_pago) {
             'yape' => ['Yape', $ajuste?->web_yape_numero, $ajuste?->web_yape_titular, $ajuste?->web_yape_qr, null],
             'plin' => ['Plin', $ajuste?->web_plin_numero, $ajuste?->web_plin_titular, $ajuste?->web_plin_qr, null],
@@ -188,7 +193,13 @@
         <div class="container text-center">
             <h1 class="fw-bold mb-2">{{ $pedidoPendiente ? '¡Pedido enviado!' : 'Confirmación de Pedido' }}</h1>
             <p class="text-muted mb-0">
-                {{ $pedidoPendiente ? 'Guardamos tu pedido. Completa la transferencia y envía el comprobante para que la tienda revise el pago.' : 'Tu compra se ha realizado correctamente.' }}
+                @if ($pagoConTransferencia)
+                    Guardamos tu pedido. Completa la transferencia y envía el comprobante para que la tienda revise el pago.
+                @elseif ($pagoIzipayPendiente)
+                    Guardamos tu pedido. Completa el pago con tarjeta en el formulario seguro de Izipay para confirmarlo.
+                @else
+                    {{ $pedidoPendiente ? 'Guardamos tu pedido. Completa el pago para que la tienda lo confirme.' : 'Tu compra se ha realizado correctamente.' }}
+                @endif
             </p>
         </div>
     </div>
@@ -211,8 +222,12 @@
                                 {{ $pedidoPendiente ? '¡Pedido enviado!' : '¡Gracias por tu compra!' }}
                             </h2>
                             <p class="lead text-muted mb-5">
-                                @if ($pedidoPendiente)
+                                @if ($pagoConTransferencia)
                                     El pedido todavía no está pagado. La tienda confirmará el pago después de revisar tu comprobante.
+                                @elseif ($pagoIzipayPendiente)
+                                    El pedido todavía no está pagado. Izipay te mostrará el formulario seguro para completar el cobro con tarjeta.
+                                @elseif ($pedidoPendiente)
+                                    El pedido todavía no está pagado. Completa el pago para que la tienda lo confirme.
                                 @else
                                     Tu pedido ha sido procesado con éxito y está confirmado.
                                     Recibirás una copia de esta confirmación por correo electrónico.
@@ -477,6 +492,35 @@
                                         </div>
                                     </div>
                                 @endif
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @endif
+            @if ($pagoIzipayPendiente)
+                <div class="row justify-content-center mb-4">
+                    <div class="col-lg-10">
+                        <div class="card border-0 shadow-sm rounded-4">
+                            <div class="card-body p-4 p-lg-5">
+                                <h3 class="h4 fw-bold mb-2">Falta confirmar tu pago con tarjeta</h3>
+                                <p class="text-muted">Tu pedido quedó reservado. Completa el pago en el formulario seguro de Izipay.</p>
+                                @if ($izipayDisponible)
+                                    <form action="{{ route('web.pedidos.izipay.reintentar', $orden->id) }}" method="POST">
+                                        @csrf
+                                        <button type="submit" class="btn btn-primary rounded-pill px-4">
+                                            <i class="bi bi-credit-card me-1" aria-hidden="true"></i>Pagar ahora con tarjeta
+                                        </button>
+                                    </form>
+                                @else
+                                    <p class="small text-muted mb-0">
+                                        El pago con tarjeta está en pausa por ahora. Tu pedido sigue guardado:
+                                        elige otro método de pago o escríbenos para coordinarlo.
+                                    </p>
+                                @endif
+                                <p class="small text-muted mt-3 mb-0">
+                                    Si ya pagaste, espera unos segundos y recarga esta página antes de intentarlo otra vez.
+                                    Izipay confirma el cobro directamente con tu banco.
+                                </p>
                             </div>
                         </div>
                     </div>

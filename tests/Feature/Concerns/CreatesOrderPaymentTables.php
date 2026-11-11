@@ -76,6 +76,25 @@ trait CreatesOrderPaymentTables
 
         $this->crearTablaIntentosMercadoPago();
 
+        // Tabla espejo para los intentos de Izipay.
+        Schema::create('intentos_pago_izipay', function (Blueprint $table): void {
+            $table->id();
+            $table->uuid('referencia')->unique();
+            $table->unsignedBigInteger('usuario_id')->index();
+            $table->unsignedBigInteger('pedido_id')->index();
+            $table->decimal('monto', 12, 2);
+            $table->string('divisa', 10);
+            $table->string('estado', 24)->default('iniciando')->index();
+            $table->text('form_token')->nullable();
+            $table->string('izipay_uuid')->nullable()->unique();
+            $table->string('estado_izipay', 40)->nullable();
+            $table->string('detalle_estado_izipay', 120)->nullable();
+            $table->string('metodo_izipay', 40)->nullable();
+            $table->dateTime('expira_at')->nullable()->index();
+            $table->dateTime('pagado_at')->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('pedido_pagos_manuales', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('pedido_id')->unique();

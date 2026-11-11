@@ -26,6 +26,13 @@
         // del carrito; sin ella el cliente sale hacia Mercado Pago. El modal tiene
         // que prometer el camino que el cliente va a recorrer de verdad.
         $tarjetaEnTienda = $tarjetaDisponible && $mercadoPago->brickListo();
+
+        // Izipay es una pasarela adicional: se ofrece solo si el dueño la
+        // encendió y las cuatro credenciales están puestas. El cobro lo hace su
+        // formulario embebido; la tienda nunca recibe datos de la tarjeta.
+        $izipay = app(\App\Services\IzipayService::class);
+        $izipayDisponible = (bool) ($ajuste?->web_izipay_activa ?? false)
+            && $izipay->sePuedeOfrecer();
     @endphp
     <style>
         .checkout-stepper .checkout-step {
@@ -2618,7 +2625,7 @@
                                                             @php $metodoSolicitado = old('metodo_pago'); @endphp
                                                             <div class="mb-4" id="payment-options-container">
                                                                 <span class="summary-label fw-semibold d-block mb-2" id="payment-method-label">Método de pago</span>
-                                                                @if ($yapeDisponible || $plinDisponible || $tarjetaDisponible)
+                                                                @if ($yapeDisponible || $plinDisponible || $tarjetaDisponible || $izipayDisponible)
                                                                     <button type="button" class="checkout-method-picker" id="payment-method-picker"
                                                                         data-bs-toggle="modal" data-bs-target="#modal-metodos-pago"
                                                                         aria-haspopup="dialog" aria-controls="modal-metodos-pago">
@@ -2638,8 +2645,8 @@
                                                                 @endif
                                                             </div>
 
-                                                                @php $hayMetodoSeleccionado = in_array($metodoSolicitado, ['yape', 'plin', 'bcp', 'tarjeta'], true); @endphp
-                                                                @if ($yapeDisponible || $plinDisponible || $bcpDisponible || $tarjetaDisponible)
+                                                                @php $hayMetodoSeleccionado = in_array($metodoSolicitado, ['yape', 'plin', 'bcp', 'tarjeta', 'izipay'], true); @endphp
+                                                                @if ($yapeDisponible || $plinDisponible || $bcpDisponible || $tarjetaDisponible || $izipayDisponible)
                                                                     <div class="checkout-qr-preview p-3 p-md-4 mt-3 @if (! $hayMetodoSeleccionado) d-none @endif" id="checkout-qr-preview" aria-live="polite">
                                                                         <div class="checkout-account__actions">
                                                                             <span class="summary-label fw-semibold mb-0">Datos del pago</span>
@@ -2856,6 +2863,11 @@
                                                                             @endif
                                                                         </div>
                                                                     @endif
+                                                                    @if ($izipayDisponible)
+                                                                        <div class="alert alert-info small mb-0 @if ($metodoSolicitado !== 'izipay') d-none @endif" id="payment-note-izipay" role="status">
+                                                                            <i class="bi bi-credit-card me-1"></i>Al confirmar el pedido abrimos el formulario seguro de Izipay en esta misma pestaña. Allí escribes tu tarjeta; la tienda no ve ni guarda sus datos y el pedido queda pagado en el momento.
+                                                                        </div>
+                                                                    @endif
                                                             </div>
 
                                                             @php
@@ -2864,6 +2876,7 @@
                                                                 $montoCheckout = \App\Models\Ajuste::formatear_precio($totalInicial);
                                                                 $etiquetaInicial = match ($metodoSolicitado) {
                                                                     'tarjeta' => '<i class="bi bi-credit-card me-1"></i>Pagar ' . $montoCheckout . ' con tarjeta',
+                                                                    'izipay' => '<i class="bi bi-credit-card me-1"></i>Pagar ' . $montoCheckout . ' con tarjeta',
                                                                     'yape', 'plin', 'bcp' => '<i class="bi bi-arrow-repeat me-1"></i>Crear pedido y subir comprobante',
                                                                     default => '<i class="bi bi-lock me-1"></i>Elige un método de pago',
                                                                 };
@@ -2874,7 +2887,7 @@
                                                                     <span class="fw-bold"><span data-checkout-qr-total>{{ \App\Models\Ajuste::formatear_precio($totalInicial) }}</span></span>
                                                                 </div>
                                                                 <button type="submit" class="btn btn-primary btn-lg rounded-pill py-3 w-100" id="btn-submit-checkout"
-                                                                    @disabled(! $yapeDisponible && ! $plinDisponible && ! $bcpDisponible && ! $tarjetaDisponible)>
+                                                                    @disabled(! $yapeDisponible && ! $plinDisponible && ! $bcpDisponible && ! $tarjetaDisponible && ! $izipayDisponible)>
                                                                     {!! $etiquetaInicial !!}
                                                                 </button>
                                                                 {{-- Mientras el servidor crea el pedido el botón queda bloqueado.
@@ -3077,7 +3090,10 @@
                                 @if ($tarjetaDisponible)
                                     <span class="g-cart-pay" data-payment-badge="tarjeta">Visa</span>
                                 @endif
-                                @if (! $yapeDisponible && ! $plinDisponible && ! $bcpDisponible && ! $tarjetaDisponible)
+                                @if ($izipayDisponible)
+                                    <span class="g-cart-pay" data-payment-badge="izipay">Izipay</span>
+                                @endif
+                                @if (! $yapeDisponible && ! $plinDisponible && ! $bcpDisponible && ! $tarjetaDisponible && ! $izipayDisponible)
                                     <span class="small text-muted">Aún no configurados</span>
                                 @endif
                             </div>
@@ -3187,6 +3203,13 @@
                                         'hint' => 'Realiza tu pago en cuotas o directo',
                                         'marcas' => $marcasTarjeta,
                                     ],
+                                    'izipay' => [
+                                        'logo' => 'assets/img/pagos/visa.svg',
+                                        'icono' => 'bi-credit-card-2-front',
+                                        'titulo' => 'Tarjeta con Izipay',
+                                        'hint' => 'Pago al instante con Visa, Mastercard o Amex',
+                                        'marcas' => $marcasTarjeta,
+                                    ],
                                     'plin' => [
                                         'logo' => 'assets/img/pagos/plin.png',
                                         'icono' => 'bi-qr-code',
@@ -3212,9 +3235,11 @@
                                 // cliente no sabe si es su conexión. Eso se dice.
                                 $metodosVisibles = array_values(array_filter(
                                     array_keys($metodosModal),
-                                    fn ($valor) => $valor === 'tarjeta'
-                                        ? $tarjetaDisponible
-                                        : \App\Models\Ajuste::motivoParaOcultarPagoWeb($ajuste, $valor) === null
+                                    fn ($valor) => match ($valor) {
+                                        'tarjeta' => $tarjetaDisponible,
+                                        'izipay' => $izipayDisponible,
+                                        default => \App\Models\Ajuste::motivoParaOcultarPagoWeb($ajuste, $valor) === null,
+                                    }
                                 ));
                             @endphp
                             @foreach ($metodosModal as $valor => $metodo)
@@ -3420,7 +3445,7 @@
                         </button>
                         <h3 class="checkout-payment-modal__titulo" tabindex="-1">¿Cómo se confirma mi pago?</h3>
                         <ul class="checkout-payment-modal__ayuda-lista">
-                            <li><strong>Tarjeta:</strong> pagas en Mercado Pago y el pedido queda confirmado al instante. La tienda no ve ni guarda tus datos.</li>
+                            <li><strong>Tarjeta:</strong> pagas en la pasarela segura (Mercado Pago o Izipay) y el pedido queda confirmado al instante. La tienda no ve ni guarda tus datos.</li>
                             <li><strong>Yape o Plin:</strong> transfieres desde tu app y adjuntas el comprobante; la tienda revisa el abono antes de marcar el pedido como pagado.</li>
                             <li><strong>Si un pago falla</strong> no se cobra dos veces: el pedido queda guardado y puedes reintentar con otro medio.</li>
                         </ul>
@@ -4095,13 +4120,24 @@
                         noteTarjeta.classList.toggle('d-none', paymentMethod !== 'tarjeta');
                     }
 
+                    const noteIzipay = document.getElementById('payment-note-izipay');
+                    if (noteIzipay) {
+                        noteIzipay.classList.toggle('d-none', paymentMethod !== 'izipay');
+                    }
+
+                    if (checkoutQrPreview) {
+                        const tienePanel = Array.from(checkoutQrPanels)
+                            .some(panel => panel.dataset.checkoutQr === paymentMethod);
+                        checkoutQrPreview.classList.toggle('d-none', !paymentMethod || !tienePanel);
+                    }
+
                     if (!btnSubmitCheckout) return;
 
                     // El importe del botón es el que realmente se enviará: hidden-total
                     // lo escribe recalculateCart() justo antes de llegar aquí.
                     const montoBoton = parseFloat(hiddenTotalInput?.value || '0') || 0;
                     let etiqueta = '<i class="bi bi-exclamation-circle me-1"></i> Elige un método de pago';
-                    if (paymentMethod === 'tarjeta') {
+                    if (paymentMethod === 'tarjeta' || paymentMethod === 'izipay') {
                         etiqueta = `<i class="bi bi-credit-card me-1"></i> Pagar ${formatearPrecioJS(montoBoton)} con tarjeta`;
                     } else if (paymentMethod) {
                         etiqueta = '<i class="bi bi-arrow-repeat me-1"></i> Crear pedido y subir comprobante';
@@ -4240,6 +4276,20 @@
                         recordatorio: 'Si tu tarjeta es de débito, activa las compras por internet desde la app de tu banco antes de pagar.',
                         confianza: 'Mercado Pago procesa la tarjeta: la tienda no ve ni guarda tu número ni el CVV.',
                     },
+@if ($izipayDisponible)
+                    izipay: {
+                        titulo: 'Paga con tu tarjeta',
+                        guia: 'Al confirmar abrimos el formulario seguro de Izipay: escribes tu tarjeta ahí y el pedido queda pagado en el momento.',
+                        nota: 'La tienda no ve ni guarda el número, la fecha ni el CVV de tu tarjeta.',
+                        pasos: [
+                            'Confirma el pedido y se abre el formulario de Izipay en esta misma pestaña.',
+                            'Escribe tu tarjeta; Visa, Mastercard y Amex funcionan según tu banco.',
+                            'Al aprobarse el pago vuelves a la tienda con el pedido confirmado.',
+                        ],
+                        recordatorio: 'Si tu tarjeta es de débito, activa las compras por internet desde la app de tu banco antes de pagar.',
+                        confianza: 'Izipay procesa la tarjeta: la tienda no ve ni guarda tu número ni el CVV.',
+                    },
+@endif
                 };
 
                 // La instancia del formulario de Mercado Pago vive aquí, fuera
@@ -4653,7 +4703,7 @@
                     // el cliente confirma de un vistazo que eligió lo que quería.
                     const continuarTexto = modalMetodos.querySelector('[data-modal-continuar-texto]');
                     if (continuarTexto) {
-                        const nombres = { tarjeta: 'tarjeta', plin: 'QR', yape: 'Yape' };
+                        const nombres = { tarjeta: 'tarjeta', plin: 'QR', yape: 'Yape', izipay: 'tarjeta (Izipay)' };
                         continuarTexto.textContent = paymentMethod && nombres[paymentMethod]
                             ? `Continuar con ${nombres[paymentMethod]}`
                             : 'Continuar';
@@ -4675,6 +4725,7 @@
                     // confianza del pie, y repetida tres veces apretaba la
                     // tarjeta.
                     const esTarjeta = paymentMethod === 'tarjeta';
+                    const esIzipay = paymentMethod === 'izipay';
                     const camposBrick = modalMetodos.querySelector('[data-detalle-campos]');
 
                     modalMetodos.querySelector('[data-detalle-nota]').hidden = esTarjeta;
@@ -4694,7 +4745,7 @@
                     // En la tarjeta las marcas ya cierran la pantalla, debajo
                     // del botón, como en la referencia; el párrafo solo sirve
                     // a Yape y Plin.
-                    marcasBloque.hidden = esTarjeta || marcas.length < 2;
+                    marcasBloque.hidden = esTarjeta || esIzipay || marcas.length < 2;
                     marcasBloque.textContent = marcasBloque.hidden
                         ? ''
                         : `En Mercado Pago puedes pagar con ${marcas.slice(0, -1).join(', ')} o ${marcas.at(-1)}.`;
@@ -4736,7 +4787,9 @@
                     modalMetodos.querySelector('[data-modal-pagar-texto]').textContent =
                         paymentMethod === 'tarjeta'
                             ? `Pagar ${formatearPrecioJS(monto)} con tarjeta`
-                            : `Ya pagué ${formatearPrecioJS(monto)} · subir comprobante`;
+                            : (esIzipay
+                                ? `Pagar ${formatearPrecioJS(monto)} con tarjeta (Izipay)`
+                                : `Ya pagué ${formatearPrecioJS(monto)} · subir comprobante`);
 
                     // El QR que ya se imprime en «Datos del pago» se copia aquí para
                     // que el cliente escanee sin cerrar la ventana. La tarjeta no

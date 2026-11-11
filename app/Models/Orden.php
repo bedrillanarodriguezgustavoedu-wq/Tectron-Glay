@@ -247,6 +247,8 @@ class Orden extends Model
                 return 'Pagar al recoger';
             case 'tarjeta':
                 return 'Tarjeta de Crédito/Débito';
+            case 'izipay':
+                return 'Tarjeta (Izipay)';
             default:
                 return ucfirst($this->metodo_pago);
         }

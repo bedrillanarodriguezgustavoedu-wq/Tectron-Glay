@@ -31,6 +31,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // incluir el token CSRF que usan los formularios internos de la tienda.
         $middleware->validateCsrfTokens(except: [
             'webhooks/mercadopago',
+            'webhooks/izipay',
+            'pago/izipay/retorno',
             'api/mobile/payment-receipts',
         ]);
 

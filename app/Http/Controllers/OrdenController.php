@@ -8,6 +8,7 @@ use App\Models\Ajuste;
 use App\Models\IntentoPagoMercadoPago;
 use App\Models\Orden;
 use App\Models\PagoManual;
+use App\Services\IzipayService;
 use App\Services\MercadoPagoService;
 use App\Services\ReservaProductoService;
 use Illuminate\Http\Request;
@@ -271,7 +272,7 @@ class OrdenController extends Controller
      * Create an unpaid order for a manual Yape, Plin or BCP transfer, or a card
      * order that continues on Mercado Pago.
      */
-    public function crearPedidoPagoManual(Request $request, ReservaProductoService $reservations, MercadoPagoService $mercadoPago)
+    public function crearPedidoPagoManual(Request $request, ReservaProductoService $reservations, MercadoPagoService $mercadoPago, IzipayService $izipay)
     {
         try {
         // Solo se exige un punto cuando la tienda publicó al menos uno: mientras
@@ -303,7 +304,7 @@ class OrdenController extends Controller
             // `bcp` salió de la lista: la tienda retiró la transferencia del
             // carrito, y aceptar el valor por POST crearía un pedido cuyo destino
             // ya no se le muestra al cliente.
-            'metodo_pago' => 'required|string|in:yape,plin,tarjeta',
+            'metodo_pago' => 'required|string|in:yape,plin,tarjeta,izipay',
             // Token ya generado por Checkout Bricks. La tienda no recibe el
             // número ni el CVV: solo este token de un solo uso, y únicamente se
             // cobra si la bandera y la Public Key están encendidas.
@@ -384,6 +385,15 @@ class OrdenController extends Controller
             if (! $ajuste?->web_mercadopago_activa || ! $mercadoPago->sePuedeOfrecer()) {
                 return redirect()->route('web.carrito.index')
                     ->with('mensaje', 'El pago con tarjeta no está disponible por ahora. Elige Yape o Plin.')
+                    ->with('icono', 'warning');
+            }
+        } elseif ($metodo === 'izipay') {
+            // Izipay cobra con su propio formulario: sin las cuatro credenciales
+            // no hay a dónde mandar al cliente, y crear el pedido lo dejaría
+            // pendiente sin salida.
+            if (! $ajuste?->web_izipay_activa || ! $izipay->sePuedeOfrecer()) {
+                return redirect()->route('web.carrito.index')
+                    ->with('mensaje', 'El pago con tarjeta (Izipay) no está disponible por ahora. Elige otro método.')
                     ->with('icono', 'warning');
             }
         } else {
@@ -513,6 +523,29 @@ class OrdenController extends Controller
             ->update(['nombre' => trim($validated['name'])]);
 
         $intento = null;
+        // Izipay: el formulario se pide antes de escribir el pedido. Si la API
+        // no responde, el cliente vuelve al carrito sin una compra a medias.
+        $preparadoIzipay = null;
+        if ($metodo === 'izipay') {
+            try {
+                $preparadoIzipay = $izipay->prepararPago([
+                    'monto' => (float) $total,
+                    'divisa' => (string) ($ajuste?->divisa ?: 'PEN'),
+                    'correo' => auth()->user()?->email,
+                    'nombre' => trim($validated['name']),
+                    'dni' => $validated['dni'],
+                    'telefono' => trim($validated['telefono']),
+                    'direccion' => $direccionTexto,
+                ]);
+            } catch (\Throwable $exception) {
+                report($exception);
+
+                return redirect()->route('web.carrito.index')
+                    ->with('mensaje', 'No pudimos abrir el pago con tarjeta (Izipay). Tu carrito sigue intacto: elige otro método o inténtalo de nuevo.')
+                    ->with('icono', 'error');
+            }
+        }
+
         if ($metodo === 'tarjeta') {
             $intento = $mercadoPago->abrirCheckout([
                 'usuario_id' => $usuarioId,
@@ -580,7 +613,7 @@ class OrdenController extends Controller
                 $orden->metodo_pago = $metodo;
                 $orden->save();
 
-                if ($metodo !== 'tarjeta') {
+                if (! in_array($metodo, ['tarjeta', 'izipay'], true)) {
                     PagoManual::create([
                         'pedido_id' => $orden->id,
                         'usuario_id' => $usuarioId,
@@ -597,7 +630,9 @@ class OrdenController extends Controller
                 $historial->hora = now()->toTimeString();
                 $historial->nota = ($metodo === 'tarjeta'
                     ? 'Pedido creado. Esperando el pago con tarjeta en Mercado Pago.'
-                    : 'Pedido creado. Pago '.$metodo.' pendiente de transferencia y comprobante.')
+                    : ($metodo === 'izipay'
+                        ? 'Pedido creado. Esperando el pago con tarjeta en Izipay.'
+                        : 'Pedido creado. Pago '.$metodo.' pendiente de transferencia y comprobante.'))
                     .($cuponAplicado !== null
                         ? ' Cupón '.$cuponAplicado.': '.Ajuste::formatear_precio($descuento).' de descuento.'
                         : '');
@@ -653,6 +688,28 @@ class OrdenController extends Controller
         // guardando, el siguiente carrito aparecería descontado sin que nadie
         // lo pidiera.
         session()->forget('carrito_cupon');
+
+        if ($preparadoIzipay !== null) {
+            try {
+                $intentoIzipay = $izipay->registrarIntento($orden, $preparadoIzipay);
+            } catch (\Throwable $exception) {
+                report($exception);
+
+                // El cobro no llegó a existir: el pedido queda pendiente y el
+                // botón «Pagar ahora» de la confirmación permite reintentarlo.
+                $this->notificarPedidoRegistrado($orden);
+
+                return redirect()->route('web.pedidos.confirmacion', $orden->id)
+                    ->with('mensaje', 'Tu pedido quedó registrado, pero no pudimos abrir el formulario de pago. Inténtalo otra vez desde esta pantalla.')
+                    ->with('icono', 'warning');
+            }
+
+            $this->notificarPedidoRegistrado($orden);
+
+            return redirect()->route('web.pagos.izipay.form', $intentoIzipay->id)
+                ->with('mensaje', 'Pedido creado. Completa el pago con tarjeta en el formulario seguro de Izipay.')
+                ->with('icono', 'success');
+        }
 
         if ($intento) {
             $intento->pedido_id = $orden->id;

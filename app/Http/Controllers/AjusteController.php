@@ -90,6 +90,7 @@ class AjusteController extends Controller
             'web_bcp_cuenta' => ['nullable', 'string', 'max:30', $noEsTarjeta],
             'web_bcp_titular' => [$request->filled('web_bcp_cci') ? 'required' : 'nullable', 'string', 'max:120'],
             'web_mercadopago_activa' => 'boolean',
+            'web_izipay_activa' => 'boolean',
             'yape_qr' => [
                 'nullable',
                 'image',
@@ -171,6 +172,7 @@ class AjusteController extends Controller
         $ajuste->web_bcp_cuenta = $request->web_bcp_cuenta;
         $ajuste->web_bcp_titular = $request->web_bcp_titular;
         $ajuste->web_mercadopago_activa = $request->boolean('web_mercadopago_activa');
+        $ajuste->web_izipay_activa = $request->boolean('web_izipay_activa');
         foreach (['web_yape', 'web_plin'] as $method) {
             $ajuste->{$method.'_numero'} = $request->input($method.'_numero');
             $ajuste->{$method.'_titular'} = $request->input($method.'_titular');
