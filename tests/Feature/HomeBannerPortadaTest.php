@@ -10,7 +10,7 @@ class HomeBannerPortadaTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_portada_banner_is_shown_in_the_welcome_hero_and_not_repeated_in_the_carousel(): void
+    public function test_portada_banner_opens_the_single_home_carousel(): void
     {
         Banner::create([
             'imagen' => 'assets/img/banner-bienvenida.jpg',
@@ -20,28 +20,7 @@ class HomeBannerPortadaTest extends TestCase
             'enlace' => '/productos',
             'activo' => true,
             'portada' => true,
-            'orden' => 0,
-        ]);
-
-        $response = $this->get(route('web.index'));
-
-        $response->assertOk()
-            ->assertSee('Bienvenida Portada')
-            ->assertSee('Subtitulo de portada')
-            ->assertSee('assets/img/banner-bienvenida.jpg');
-
-        // La portada se muestra en el hero (una imagen) y no se repite en el carrusel.
-        $this->assertSame(1, substr_count($response->getContent(), 'alt="Bienvenida Portada"'));
-    }
-
-    public function test_regular_banner_stays_in_the_carousel_when_another_banner_is_the_portada(): void
-    {
-        Banner::create([
-            'imagen' => 'assets/img/banner-bienvenida.jpg',
-            'titulo' => 'Portada Principal',
-            'activo' => true,
-            'portada' => true,
-            'orden' => 0,
+            'orden' => 5,
         ]);
 
         Banner::create([
@@ -55,7 +34,20 @@ class HomeBannerPortadaTest extends TestCase
         $response = $this->get(route('web.index'));
 
         $response->assertOk()
-            ->assertSee('Portada Principal')
-            ->assertSee('Banner Normal Carrusel');
+            ->assertSee('Bienvenida Portada')
+            ->assertSee('Subtitulo de portada')
+            ->assertSee('Banner Normal Carrusel')
+            ->assertSee('assets/img/banner-bienvenida.jpg')
+            ->assertSee('Bienvenido');
+
+        // Ya no existe el bloque fijo de bienvenida: todo va en un solo carrusel.
+        $response->assertDontSee('welcome-hero');
+
+        // La portada se ordena primero aunque su "orden" sea mayor.
+        $html = $response->getContent();
+        $this->assertLessThan(
+            strpos($html, 'Banner Normal Carrusel'),
+            strpos($html, 'Bienvenida Portada')
+        );
     }
 }

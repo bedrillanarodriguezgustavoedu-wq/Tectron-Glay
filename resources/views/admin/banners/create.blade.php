@@ -110,7 +110,7 @@
                             <div class="form-check form-switch mt-2">
                                 <input class="form-check-input" type="checkbox" name="portada" id="portada" value="1" {{ old('portada') ? 'checked' : '' }}>
                                 <label class="form-check-label fw-bold" for="portada">Usar como portada de bienvenida (inicio)</label>
-                                <div><small class="text-muted">La portada es fija arriba del inicio y no se repite en el carrusel.</small></div>
+                                <div><small class="text-muted">La portada aparece como la primera diapositiva del carrusel de inicio.</small></div>
                             </div>
                         </div>
 

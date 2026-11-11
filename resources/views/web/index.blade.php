@@ -2,59 +2,6 @@
 
 @section('content')
     
-    @php
-        // La portada de bienvenida se administra en Admin → Banners con la
-        // casilla "Usar como portada de bienvenida". Se muestra fija arriba y
-        // se quita del carrusel para que la misma imagen no salga dos veces.
-        $bannerBienvenida = $banners->firstWhere('portada', true)
-            ?? $banners->first(fn ($b) => \Illuminate\Support\Str::contains(
-                \Illuminate\Support\Str::lower((string) $b->titulo),
-                'bienvenid'
-            ));
-        $bannersCarrusel = $bannerBienvenida
-            ? $banners->reject(fn ($b) => $b->id === $bannerBienvenida->id)->values()
-            : $banners;
-        $enlaceBienvenida = $bannerBienvenida?->enlace;
-        if (! $enlaceBienvenida || (! filter_var($enlaceBienvenida, FILTER_VALIDATE_URL) && ! \Illuminate\Support\Str::startsWith($enlaceBienvenida, '/'))) {
-            $enlaceBienvenida = route('web.productos');
-        }
-    @endphp
-
-    {{-- Banner de bienvenida --}}
-    <section class="welcome-hero" style="position:relative;overflow:hidden;height:460px;margin-bottom:1.75rem;border-radius:16px;">
-        <img src="{{ $bannerBienvenida?->image_url ?? asset('assets/img/banner-bienvenida.jpg') }}"
-            alt="{{ $bannerBienvenida?->titulo ?: 'Bienvenido a Tectron Galy' }}"
-            style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.92);">
-        <div style="position:absolute;inset:0;background:linear-gradient(100deg,rgba(15,23,42,.96) 0%,rgba(15,23,42,.85) 45%,rgba(15,23,42,.45) 100%);"></div>
-        <div class="container h-100" style="position:relative;z-index:2;">
-            <div class="row h-100 align-items-center">
-                <div class="col-lg-6 text-white py-4">
-                    <span class="badge bg-success mb-3 px-3 py-2" style="font-size:.8rem;letter-spacing:2px;font-weight:600;">
-                        <i class="bi bi-lightning-charge-fill me-1"></i>BIENVENIDO
-                    </span>
-                    <h1 class="fw-bold mb-2" style="color:#fff;font-size:clamp(2rem,4.4vw,3.2rem);text-shadow:0 4px 12px rgba(0,0,0,.65);line-height:1.1;max-width:520px;">
-                        {{ $bannerBienvenida?->titulo ?: 'Tectron Galy' }}
-                    </h1>
-                    <p class="mb-3" style="font-size:1.15rem;text-shadow:0 2px 6px rgba(0,0,0,.5);max-width:480px;">
-                        {{ $bannerBienvenida?->subtitulo ?: 'Tu tienda de tecnología y accesorios. Envío a todo el Perú, pago 100% seguro.' }}
-                    </p>
-                    <div class="d-flex gap-2 flex-wrap mb-3">
-                        <a href="{{ $enlaceBienvenida }}" class="btn btn-success btn-lg fw-bold px-4">
-                            <i class="bi bi-bag me-2"></i>{{ $bannerBienvenida?->boton_texto ?: 'Comprar ahora' }}
-                        </a>
-                        <a href="{{ route('web.ofertas') }}" class="btn btn-outline-light btn-lg px-4">
-                            Ver ofertas
-                        </a>
-                    </div>
-                    <div class="d-flex gap-3 flex-wrap small" style="opacity:.9;">
-                        <span><i class="bi bi-truck me-1"></i>Envío a todo el Perú</span>
-                        <span><i class="bi bi-shield-check me-1"></i>Pago seguro</span>
-                        <span><i class="bi bi-credit-card me-1"></i>Yape, Plin y tarjetas</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
 
     <style>
         .hover-zoom img {
@@ -197,6 +144,12 @@
 
     {{-- La franja de confianza se muestra una sola vez, debajo del carrusel --}}
 
+    @php
+        // La portada de bienvenida (Admin → Banners) abre el carrusel y el resto
+        // de banners sigue en su orden. Un solo bloque de banner en la home.
+        $bannersCarrusel = $banners->sortByDesc('portada')->values();
+    @endphp
+
     <div class="g-home-hero">
     @if ($bannersCarrusel->isNotEmpty())
         <div id="heroCarousel" class="carousel slide mb-4" style="--home-slider-height: {{ max(300, min(900, (int) ($ajuste->home_slider_altura ?? 520))) }}px;" data-bs-ride="carousel" data-bs-interval="{{ $ajuste->home_slider_velocidad ?? 5000 }}">
@@ -223,7 +176,7 @@
                             <a href="{{ $bannerLink }}" class="shared-banner-hit" aria-label="{{ $banner->titulo ?: 'Ver ofertas' }}"></a>
                             <div class="shared-banner-overlay">
                                 <div class="shared-banner-copy">
-                                    <span class="g-hero-eyebrow"><i class="bi bi-lightning-charge-fill"></i> Oferta de la semana</span>
+                                    <span class="g-hero-eyebrow"><i class="bi bi-lightning-charge-fill"></i> {{ $banner->portada ? 'Bienvenido' : 'Oferta de la semana' }}</span>
                                     @if ($banner->titulo)
                                         <h1>{{ $banner->titulo }}</h1>
                                     @endif
@@ -231,7 +184,7 @@
                                         <p>{{ $banner->subtitulo }}</p>
                                     @endif
                                     <div class="g-hero-cta">
-                                        <a href="{{ $bannerLink }}" class="btn btn-light fw-bold">Comprar ahora <i class="bi bi-arrow-right ms-1"></i></a>
+                                        <a href="{{ $bannerLink }}" class="btn btn-light fw-bold">{{ $banner->boton_texto ?: 'Comprar ahora' }} <i class="bi bi-arrow-right ms-1"></i></a>
                                         <a href="{{ route('web.ofertas') }}" class="btn btn-outline-light">Ver ofertas</a>
                                     </div>
                                 </div>
@@ -290,7 +243,7 @@
                 <span class="visually-hidden">Siguiente</span>
             </button>
         </div>
-    @elseif (! $bannerBienvenida)
+    @else
         <!-- Hero Section Fallback -->
         <section id="hero" class="hero section">
             <div class="hero-container">
