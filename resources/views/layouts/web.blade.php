@@ -37,7 +37,7 @@
     <link href="{{ asset('/assets/css/main.css') }}" rel="stylesheet">
 
     <!-- GALY Theme -->
-    <link href="{{ asset('/assets/css/galy.css') }}?v=5" rel="stylesheet">
+    <link href="{{ asset('/assets/css/galy.css') }}?v=7" rel="stylesheet">
 
     <meta name="theme-color" content="#0b1220">
 

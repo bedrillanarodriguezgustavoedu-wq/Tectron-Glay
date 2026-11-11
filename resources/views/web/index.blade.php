@@ -193,6 +193,13 @@
                                             <span><i class="bi bi-shield-check"></i> Pago seguro</span>
                                             <span><i class="bi bi-credit-card"></i> Yape, Plin y tarjetas</span>
                                         </div>
+                                        <div class="g-hero-float-card" aria-hidden="true">
+                                            <span class="g-hero-float-icon"><i class="bi bi-shield-check"></i></span>
+                                            <span>
+                                                <strong>Compra protegida</strong>
+                                                <small>Mercado Pago · Yape · Plin</small>
+                                            </span>
+                                        </div>
                                     @endif
                                 </div>
                             </div>
